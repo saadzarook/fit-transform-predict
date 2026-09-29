@@ -1,0 +1,1149 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fit, Transform, Predict</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+@property --ga{syntax:'<color>';inherits:false;initial-value:transparent}
+@property --gb{syntax:'<color>';inherits:false;initial-value:transparent}
+:root{
+  --paper:#EDF2FA; --paper-2:#E1E8F4; --card:#FFFFFF; --ink:#111A2E; --ink-2:#33415C; --muted:#5E6C86;
+  --line:#D0D9E7; --grid:#E0E7F1; --dot:rgba(40,62,120,.16);
+  --fit:#2A52DB; --fit-soft:#DDE5FF;
+  --tx:#0A8A75; --tx-soft:#D2F0E8;
+  --pr:#A56D00; --pr-fill:#F2B200; --pr-soft:#FFF0C4;
+  --bad:#C0372D; --bad-soft:#FBE0DC;
+  --glow-fit:rgba(74,112,255,.30); --glow-tx:rgba(16,186,156,.26); --glow-pr:rgba(255,184,20,.30);
+  --scoop:#F08DB4; --scoop-2:#8FD3C6; --cone:#D49A4E;
+  --shadow:0 1px 2px rgba(18,27,45,.06),0 10px 30px rgba(30,50,110,.08);
+  --display:"Bricolage Grotesque",ui-sans-serif,system-ui,sans-serif;
+  --body:"Atkinson Hyperlegible",ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme:dark;
+    --paper:#090F1C; --paper-2:#111A2C; --card:#111B2E; --ink:#E6ECF6; --ink-2:#BFC9DA; --muted:#8D9AB1;
+    --line:#25334B; --grid:#172236; --dot:rgba(150,175,235,.10);
+    --fit:#7F9DFF; --fit-soft:#1B2952;
+    --tx:#3ED0B4; --tx-soft:#0E3430;
+    --pr:#FFC73F; --pr-fill:#FFC73F; --pr-soft:#3A2D0B;
+    --bad:#FF7C70; --bad-soft:#3E1A17;
+    --glow-fit:rgba(80,110,255,.22); --glow-tx:rgba(30,200,170,.15); --glow-pr:rgba(255,180,40,.14);
+    --scoop:#F3A2C4; --scoop-2:#7DCABB; --cone:#C8904A;
+    --shadow:0 1px 2px rgba(0,0,0,.3),0 10px 30px rgba(0,0,0,.3);
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --paper:#090F1C; --paper-2:#111A2C; --card:#111B2E; --ink:#E6ECF6; --ink-2:#BFC9DA; --muted:#8D9AB1;
+  --line:#25334B; --grid:#172236; --dot:rgba(150,175,235,.10);
+  --fit:#7F9DFF; --fit-soft:#1B2952;
+  --tx:#3ED0B4; --tx-soft:#0E3430;
+  --pr:#FFC73F; --pr-fill:#FFC73F; --pr-soft:#3A2D0B;
+  --bad:#FF7C70; --bad-soft:#3E1A17;
+  --glow-fit:rgba(80,110,255,.22); --glow-tx:rgba(30,200,170,.15); --glow-pr:rgba(255,180,40,.14);
+  --scoop:#F3A2C4; --scoop-2:#7DCABB; --cone:#C8904A;
+  --shadow:0 1px 2px rgba(0,0,0,.3),0 10px 30px rgba(0,0,0,.3);
+}
+*{box-sizing:border-box}
+body{background:var(--paper); color:var(--ink); font-family:var(--body); font-size:17px; line-height:1.6}
+
+/* ---------- living background: dot grid + glows that follow the chapter ---------- */
+.bg{position:fixed; inset:0; z-index:0; pointer-events:none; overflow:hidden;
+  background-image:radial-gradient(circle,var(--dot) 1.2px,transparent 1.7px); background-size:24px 24px}
+.bg::before{content:""; position:absolute; inset:-15%;
+  background:radial-gradient(45% 40% at 12% 8%,var(--ga),transparent 70%),radial-gradient(45% 40% at 92% 92%,var(--gb),transparent 70%),radial-gradient(30% 30% at 80% 18%,var(--gb),transparent 70%);
+  --ga:var(--glow-fit); --gb:var(--glow-pr);
+  transition:--ga 1.4s ease,--gb 1.4s ease; animation:drift 26s ease-in-out infinite alternate}
+.bg[data-ch="fit"]::before{--ga:var(--glow-fit); --gb:var(--glow-tx)}
+.bg[data-ch="clean"]::before{--ga:var(--glow-tx); --gb:var(--glow-fit)}
+.bg[data-ch="predict"]::before{--ga:var(--glow-pr); --gb:var(--glow-tx)}
+.bg[data-ch="pipeline"]::before{--ga:var(--glow-fit); --gb:var(--glow-pr)}
+.bg[data-ch="tokens"]::before{--ga:var(--glow-tx); --gb:var(--glow-pr)}
+.bg[data-ch="generate"]::before{--ga:var(--glow-pr); --gb:var(--glow-fit)}
+.bg[data-ch="blanks"]::before{--ga:var(--glow-tx); --gb:var(--glow-pr)}
+.bg[data-ch="big"]::before{--ga:var(--glow-fit); --gb:var(--glow-pr)}
+@keyframes drift{from{transform:translate(0,0) scale(1)}to{transform:translate(4%,3%) scale(1.08)}}
+.top,main{position:relative; z-index:1}
+
+h1,h2,h3{font-family:var(--display); text-wrap:balance; margin:0; line-height:1.08; letter-spacing:-.01em}
+p{margin:0}
+code,.mono{font-family:var(--mono); font-size:.86em}
+button{font:inherit; cursor:pointer}
+button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visible,a:focus-visible{outline:3px solid var(--fit); outline-offset:2px}
+.v-fit{color:var(--fit)} .v-tx{color:var(--tx)} .v-pr{color:var(--pr)}
+
+/* ---------- top bar ---------- */
+.top{position:sticky; top:env(safe-area-inset-top,0px); z-index:20; background:color-mix(in srgb,var(--paper) 82%,transparent); backdrop-filter:blur(10px); border-bottom:1px solid var(--line)}
+.top-in{max-width:1120px; margin:0 auto; padding:10px 16px; display:flex; align-items:center; gap:14px}
+.brand{font-family:var(--display); font-weight:800; font-size:17px; white-space:nowrap; text-decoration:none; color:var(--ink)}
+.brand .dot{display:inline-block; width:9px; height:9px; border-radius:50%; margin-right:3px}
+.nav{flex:1; overflow-x:auto; scrollbar-width:none}
+.nav::-webkit-scrollbar{display:none}
+.nav ol{list-style:none; margin:0; padding:0; display:flex; gap:4px}
+.nav a{display:block; padding:5px 10px; border-radius:99px; font-size:14px; color:var(--muted); text-decoration:none; white-space:nowrap; transition:background .25s,color .25s}
+.nav a b{font-family:var(--mono); font-weight:600; font-size:12px; margin-right:5px; opacity:.7}
+.nav a.on{background:var(--ink); color:var(--paper)}
+.codetoggle{border:1px solid var(--line); background:var(--card); color:var(--ink-2); border-radius:8px; padding:5px 10px; font-size:13px; white-space:nowrap}
+.codetoggle[aria-pressed="true"]{background:var(--ink); color:var(--paper); border-color:var(--ink)}
+.progress{position:absolute; left:0; bottom:-1px; height:3px; width:100%; transform-origin:0 50%; transform:scaleX(0); background:linear-gradient(90deg,var(--fit),var(--tx),var(--pr-fill))}
+
+/* ---------- layout ---------- */
+main{max-width:1120px; margin:0 auto; padding-inline:16px; padding-block:0 80px}
+.hero{padding-block:56px 40px; display:grid; grid-template-columns:1.05fr 1fr; gap:40px; align-items:center; scroll-margin-top:64px}
+.eyebrow{font-family:var(--mono); font-size:12px; letter-spacing:.12em; text-transform:uppercase; color:var(--muted)}
+.hero h1{font-size:clamp(44px,7vw,84px); font-weight:800; margin-top:10px; letter-spacing:-.03em}
+.hero h1 span{display:block; transition:opacity .4s, transform .4s}
+.hero .lede{font-size:19px; color:var(--ink-2); margin-top:18px; max-width:34em}
+.hero .lede em{font-style:normal; font-weight:700; color:var(--ink)}
+.hero-art{background:var(--card); border:1px solid var(--line); border-radius:16px; box-shadow:var(--shadow); padding:10px}
+.hero-art svg{width:100%; height:auto; display:block}
+.hero-cap{display:flex; justify-content:space-between; gap:8px; padding:8px 6px 2px; font-family:var(--mono); font-size:12px; color:var(--muted)}
+.hero-cap span{transition:color .3s}
+.hero-cap span.on{color:var(--ink); font-weight:600}
+.scrollhint{display:inline-flex; gap:8px; align-items:center; margin-top:22px; font-size:14px; color:var(--muted); text-decoration:none}
+.scrollhint span{display:inline-block; animation:bob 1.6s ease-in-out infinite}
+@keyframes bob{50%{transform:translateY(5px)}}
+
+.chapter{padding-block:64px 8px; border-top:1px dashed var(--line); scroll-margin-top:64px}
+.chapter-head{display:flex; align-items:baseline; gap:14px; flex-wrap:wrap}
+.num{font-family:var(--mono); font-size:13px; color:var(--muted)}
+.tag{font-family:var(--mono); font-size:12px; font-weight:600; padding:3px 9px; border-radius:6px; letter-spacing:.02em}
+.tag.fit{background:var(--fit-soft); color:var(--fit)}
+.tag.tx{background:var(--tx-soft); color:var(--tx)}
+.tag.pr{background:var(--pr-soft); color:var(--pr)}
+.tag.all{background:var(--paper-2); color:var(--ink-2)}
+.chapter h2{font-size:clamp(30px,4.2vw,46px); font-weight:800; margin-top:10px; width:100%}
+.split{display:grid; grid-template-columns:minmax(0,0.9fr) minmax(0,1.25fr); gap:36px; margin-top:26px; align-items:start}
+.prose{display:flex; flex-direction:column; gap:14px; color:var(--ink-2); max-width:36em}
+.prose strong{color:var(--ink)}
+.bridge{border-left:3px solid var(--ink); padding:4px 0 4px 14px; color:var(--ink); font-size:16px}
+.bridge .eyebrow{display:block; margin-bottom:4px}
+.aside{font-size:14px; color:var(--muted); font-style:italic}
+
+.panel{background:var(--card); border:1px solid var(--line); border-radius:16px; box-shadow:var(--shadow); padding:16px; display:flex; flex-direction:column; gap:12px; min-width:0}
+.panel svg.chart{width:100%; height:auto; display:block; touch-action:none; user-select:none}
+.row{display:flex; gap:8px; flex-wrap:wrap; align-items:center}
+.btn{border:1px solid var(--line); background:var(--paper); color:var(--ink); border-radius:9px; padding:8px 13px; font-size:15px; transition:transform .1s, background .2s}
+.btn:hover{background:var(--paper-2)}
+.btn:active{transform:translateY(1px) scale(.98)}
+.btn:disabled{opacity:.5; cursor:default}
+.btn.primary{background:var(--ink); color:var(--paper); border-color:var(--ink)}
+.btn.on{background:var(--ink); color:var(--paper); border-color:var(--ink)}
+.btn.good{background:var(--tx-soft); border-color:var(--tx); color:var(--ink)}
+.btn.wrong{background:var(--bad-soft); border-color:var(--bad); color:var(--bad)}
+.hint{font-size:14px; color:var(--muted)}
+.readout{font-family:var(--mono); font-size:14px; color:var(--ink-2); background:var(--paper); border-radius:9px; padding:10px 12px; line-height:1.5}
+.readout b{color:var(--ink)}
+.big{font-family:var(--display); font-weight:800; font-size:clamp(30px,4vw,42px); line-height:1}
+.meter{height:10px; background:var(--paper-2); border-radius:99px; overflow:hidden; margin-top:6px}
+.meter span{display:block; height:100%; background:var(--bad); border-radius:99px; transition:width .2s}
+.meter.you span{background:var(--pr-fill)}
+
+/* chart pieces */
+.gl{stroke:var(--grid); stroke-width:1}
+.tk{fill:var(--muted); font-family:var(--mono); font-size:12px}
+.al{fill:var(--ink-2); font-family:var(--body); font-size:13px}
+.pt{fill:var(--ink); stroke:var(--card); stroke-width:2; cursor:grab}
+.pt.new{fill:var(--fit)}
+.pt.filled{fill:var(--card); stroke:var(--tx); stroke-width:3}
+.pt.faint{fill:var(--muted); opacity:.45; cursor:default}
+.pt:hover{stroke:var(--fit); stroke-width:3}
+.fitline line{stroke:var(--fit); stroke-width:3.5; stroke-linecap:round}
+.fitline line.youline{stroke:var(--pr-fill)}
+.fitline line.ghost{stroke:var(--fit); stroke-dasharray:6 6; opacity:.7; stroke-width:2.5}
+.handle{fill:var(--pr-fill); stroke:var(--card); stroke-width:3; cursor:ns-resize}
+.resid{stroke:var(--bad); stroke-width:1.5; stroke-dasharray:3 3; opacity:.75}
+.seen{fill:var(--fit-soft); opacity:.6}
+#cleanChart circle{transition:cx .7s cubic-bezier(.3,1.3,.5,1), cy .7s cubic-bezier(.3,1.3,.5,1), r .4s}
+.shake{animation:shake .45s}
+@keyframes shake{20%,60%{transform:translateX(-6px)}40%,80%{transform:translateX(6px)}}
+
+details.code{border:1px solid var(--line); border-radius:10px; background:var(--paper)}
+details.code summary{padding:8px 12px; font-size:14px; color:var(--ink-2); cursor:pointer; list-style:none; display:flex; align-items:center; gap:8px}
+details.code summary::-webkit-details-marker{display:none}
+details.code summary::before{content:"</>"; font-family:var(--mono); font-size:12px; color:var(--muted)}
+details.code pre{margin:0; padding:12px 14px; border-top:1px solid var(--line); overflow-x:auto; font-family:var(--mono); font-size:13px; line-height:1.55; color:var(--ink)}
+.c-cm{color:var(--muted)} .c-kw{color:var(--fit)} .c-st{color:var(--tx)}
+
+/* cleaning table */
+.tbl-wrap{overflow-x:auto}
+table.data{border-collapse:collapse; width:100%; font-size:14px; font-variant-numeric:tabular-nums}
+table.data th{font-family:var(--mono); font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); text-align:left; padding:6px 8px; border-bottom:1px solid var(--line); font-weight:400}
+table.data td{padding:5px 8px; border-bottom:1px solid var(--grid); transition:background .3s, opacity .3s}
+table.data td.t{font-family:var(--mono)}
+td.messy{background:var(--bad-soft); color:var(--bad); font-weight:600}
+td.fixed{background:var(--tx-soft); color:var(--tx); font-weight:600; animation:flash .7s}
+@keyframes flash{0%{transform:scale(1.25); box-shadow:0 0 0 3px var(--tx)}100%{transform:none}}
+tr.dropped td{opacity:.35; text-decoration:line-through}
+.two{display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1.2fr); gap:14px; align-items:start}
+.msg{font-size:15px; border-radius:9px; padding:10px 12px; background:var(--paper)}
+.msg.err{background:var(--bad-soft); color:var(--bad)}
+.msg.ok{background:var(--tx-soft); color:var(--ink)}
+
+/* predict */
+input[type=range]{width:100%; accent-color:var(--pr-fill)}
+.warn{font-size:15px; color:var(--bad); min-height:1.5em}
+.vibe{font-family:var(--display); font-weight:700; font-size:17px; color:var(--ink); min-height:1.4em}
+.cones{display:flex; flex-wrap:wrap; gap:3px; min-height:30px; align-items:flex-end}
+.cones svg{animation:pop .3s ease-out both}
+
+/* pipeline */
+.pipe{display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:12px; position:relative; padding-top:6px}
+.station{border:1px solid var(--line); border-radius:12px; background:var(--paper); padding:22px 12px 12px; display:flex; flex-direction:column; gap:6px; transition:border-color .3s, box-shadow .3s, transform .3s; position:relative}
+.station h3{font-size:16px; font-weight:700}
+.station .role{font-family:var(--mono); font-size:11px; color:var(--muted)}
+.station .learned,.station .out{font-size:13.5px; line-height:1.4; min-height:2.8em}
+.station .learned{color:var(--ink-2)}
+.station .out{font-family:var(--mono); font-size:13px; background:var(--card); border-radius:7px; padding:6px 8px; color:var(--ink)}
+.station.active{border-color:var(--ink); box-shadow:0 0 0 3px color-mix(in srgb,var(--ink) 14%,transparent); transform:translateY(-2px)}
+.station.learnt .learned{color:var(--fit); font-weight:700}
+.station::after{content:"→"; position:absolute; right:-12px; top:50%; transform:translate(50%,-50%); color:var(--muted); font-size:16px}
+.station:last-child::after{content:none}
+.station.s-tx h3{color:var(--tx)} .station.s-fit h3{color:var(--fit)} .station.s-pr h3{color:var(--pr)}
+.packet{position:absolute; left:0; top:0; z-index:3; background:var(--ink); color:var(--paper); font-family:var(--mono); font-size:12px; padding:4px 11px; border-radius:99px; white-space:nowrap; box-shadow:0 4px 14px rgba(0,0,0,.2); transition:transform .6s cubic-bezier(.5,0,.2,1); pointer-events:none}
+
+/* tokens */
+.tok-input{width:100%; font:inherit; font-size:18px; padding:11px 13px; border-radius:10px; border:1px solid var(--line); background:var(--paper); color:var(--ink)}
+.chips{display:flex; flex-wrap:wrap; gap:6px; min-height:46px}
+.chip{display:inline-flex; flex-direction:column; align-items:center; padding:4px 8px 3px; border-radius:7px; background:var(--fit-soft); border:1.5px solid transparent; animation:pop .25s ease-out both}
+.chip .w{font-family:var(--mono); font-size:15px; color:var(--ink); white-space:pre}
+.chip .id{font-family:var(--mono); font-size:10px; color:var(--muted)}
+.chip.frag{background:var(--bad-soft); border-color:color-mix(in srgb,var(--bad) 45%,transparent); border-style:dashed}
+.chip.sp{background:var(--paper-2)}
+@keyframes pop{from{transform:scale(.7); opacity:.3}to{transform:none; opacity:1}}
+.map text{font-family:var(--body); font-size:13px; fill:var(--muted); transition:fill .2s}
+.map circle.dot{fill:var(--muted); transition:r .2s, fill .2s}
+.map g.hit text{fill:var(--ink); font-weight:700}
+.map g.hit circle.dot{fill:var(--fit)}
+.map g.res text{fill:var(--pr); font-weight:700}
+.map g.res circle.dot{fill:var(--pr-fill)}
+.map .cl{fill:var(--paper-2)}
+.map .cll{font-family:var(--mono); font-size:10px; letter-spacing:.08em; fill:var(--muted); text-transform:uppercase; opacity:.8}
+.vec-draw{stroke-dasharray:400; stroke-dashoffset:400; animation:draw .9s ease forwards}
+@keyframes draw{to{stroke-dashoffset:0}}
+.ring{fill:none; stroke:var(--pr-fill); stroke-width:3; animation:ring 1.2s ease-out infinite}
+@keyframes ring{from{r:6; opacity:1}to{r:20; opacity:0}}
+.vecrow{display:flex; flex-wrap:wrap; gap:6px; align-items:center; font-family:var(--mono); font-size:15px}
+.vecrow select{font:inherit; padding:5px 6px; border-radius:7px; border:1px solid var(--line); background:var(--paper); color:var(--ink)}
+.vecres{font-weight:700; color:var(--pr); min-width:4em}
+
+/* generator */
+.sentence{font-family:var(--display); font-size:clamp(22px,3vw,30px); font-weight:700; line-height:1.3; min-height:2.7em; display:flex; flex-wrap:wrap; gap:.25em .35em; align-items:baseline}
+.sentence .wd{animation:pop .3s ease-out both}
+.sentence .wd.gen{color:var(--pr)}
+.sentence .caret{display:inline-block; width:.5em; height:1em; background:var(--pr-fill); opacity:.6; animation:blink 1s steps(2) infinite; transform:translateY(.12em)}
+@keyframes blink{50%{opacity:0}}
+.bars{display:flex; flex-direction:column; gap:6px}
+.bar{display:grid; grid-template-columns:7.5em minmax(0,1fr) 3.6em; align-items:center; gap:10px; border:0; background:none; padding:2px 4px; text-align:left; color:var(--ink); border-radius:6px; transition:background .08s}
+.bar .lab{font-family:var(--mono); font-size:14px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.bar .trk{height:18px; background:var(--paper-2); border-radius:5px; overflow:hidden}
+.bar .fill{height:100%; background:var(--pr-fill); border-radius:5px; transition:width .35s ease}
+.bar .pc{font-family:var(--mono); font-size:13px; color:var(--muted); text-align:right; font-variant-numeric:tabular-nums}
+.bar.pick .fill{background:var(--ink)}
+.bar.pick .lab{font-weight:600}
+.bar.spin{background:var(--pr-soft)}
+.bar.truth .lab{color:var(--tx); font-weight:600}
+.bar.truth .fill{background:var(--tx)}
+button.bar:hover .trk{outline:1px solid var(--line)}
+.loop{display:flex; flex-wrap:wrap; gap:6px; align-items:center; font-size:13px}
+.loop span.st{border:1px solid var(--line); border-radius:99px; padding:4px 10px; color:var(--muted); transition:all .2s; background:var(--paper)}
+.loop span.st.on{background:var(--pr-fill); border-color:var(--pr-fill); color:#1a1300; font-weight:700}
+.loop .ar{color:var(--muted)}
+.temp-row{display:grid; grid-template-columns:auto minmax(0,1fr) auto; gap:10px; align-items:center; font-size:14px; color:var(--muted)}
+.corpus{font-family:var(--mono); font-size:12.5px; color:var(--muted); background:var(--card); border:1px solid var(--line); border-radius:9px; padding:10px 12px; max-height:9.5em; overflow:auto; line-height:1.6}
+
+/* blanks */
+.tabs{display:flex; gap:6px; flex-wrap:wrap}
+.prompt{font-family:var(--display); font-weight:700; font-size:clamp(21px,2.6vw,27px); line-height:1.3}
+.blank{display:inline-block; min-width:4.5em; border-bottom:3px solid var(--pr-fill); color:var(--pr); text-align:center; padding:0 .2em}
+.blank.landed{animation:pop .35s ease-out}
+.game{margin-top:26px}
+.game .gsent{font-family:var(--display); font-weight:700; font-size:clamp(20px,2.6vw,26px); display:flex; flex-wrap:wrap; gap:.3em; align-items:baseline}
+.game .gsent .hole{display:inline-block; min-width:4em; border-bottom:3px dashed var(--ink); text-align:center; color:var(--pr)}
+.score{font-family:var(--mono); font-size:14px; display:flex; gap:16px; flex-wrap:wrap}
+.score b{font-size:22px; font-family:var(--display)}
+.vs{display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-top:26px}
+.vs .side{border:1px solid var(--line); border-radius:14px; padding:14px; display:flex; flex-direction:column; gap:8px; background:var(--card)}
+.vs h3{font-size:18px}
+.io{font-family:var(--mono); font-size:13px; border-radius:8px; padding:8px 10px; background:var(--paper)}
+.io.bad{background:var(--bad-soft); color:var(--bad)}
+.io.good{background:var(--tx-soft); color:var(--ink)}
+.typewrite::after{content:"|"; animation:blink 1s steps(2) infinite; margin-left:1px}
+
+/* big picture */
+.map-tbl-wrap{overflow-x:auto; margin-top:26px; border:1px solid var(--line); border-radius:14px; background:var(--card); box-shadow:var(--shadow)}
+table.mapt{border-collapse:collapse; width:100%; min-width:720px; font-size:15px}
+table.mapt th,table.mapt td{padding:14px 16px; text-align:left; vertical-align:top; border-bottom:1px solid var(--line)}
+table.mapt tr:last-child td{border-bottom:0}
+table.mapt thead th{font-family:var(--mono); font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--muted); font-weight:400; background:var(--paper)}
+table.mapt td:first-child{font-family:var(--mono); font-weight:600; white-space:nowrap}
+table.mapt td{color:var(--ink-2)}
+.bends{display:grid; grid-template-columns:repeat(auto-fit,minmax(250px,1fr)); gap:14px; margin-top:22px}
+.bend{border-top:2px solid var(--ink); padding-top:10px; display:flex; flex-direction:column; gap:6px}
+.bend h3{font-size:19px}
+.bend p{color:var(--ink-2); font-size:15.5px}
+.quiz{display:grid; grid-template-columns:repeat(auto-fill,minmax(250px,1fr)); gap:12px; margin-top:18px}
+.qcard{background:var(--card); border:1px solid var(--line); border-radius:14px; padding:14px; display:flex; flex-direction:column; gap:10px; transition:border-color .3s, transform .3s}
+.qcard p{font-size:15.5px; color:var(--ink)}
+.qcard .row .btn{padding:5px 10px; font-size:13px; font-family:var(--mono)}
+.qcard .fb{font-size:13.5px; color:var(--muted); min-height:1.2em}
+.qcard.right{border-color:var(--tx)}
+.qcard.miss{border-color:var(--bad)}
+.closing{margin-top:56px; display:flex; flex-direction:column; gap:10px}
+.closing .q{font-family:var(--display); font-weight:700; font-size:clamp(22px,3vw,30px); color:var(--ink-2)}
+.closing .a{font-family:var(--display); font-weight:800; font-size:clamp(40px,7vw,76px); letter-spacing:-.03em; line-height:1; background:linear-gradient(90deg,var(--fit),var(--tx),var(--pr-fill)); -webkit-background-clip:text; background-clip:text; color:transparent}
+footer{margin-top:28px; color:var(--muted); font-size:14px}
+
+@media (max-width:900px){
+  .hero,.split{grid-template-columns:1fr}
+  .hero{padding-block:36px 24px; gap:26px}
+  .pipe{grid-template-columns:1fr; gap:22px}
+  .station::after{content:"↓"; right:50%; top:auto; bottom:-12px; transform:translate(50%,50%)}
+}
+@media (max-width:620px){
+  body{font-size:16px}
+  .two,.vs{grid-template-columns:1fr}
+  .nav a span{display:none}
+  .nav a b{margin:0}
+  .brand .full{display:none}
+  .bar{grid-template-columns:6em minmax(0,1fr) 3.2em}
+}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation:none!important; transition:none!important}
+  .vec-draw{stroke-dashoffset:0}
+}
+</style>
+
+<div class="bg" id="bg" aria-hidden="true"></div>
+
+<header class="top">
+  <div class="top-in">
+    <a class="brand" href="#intro"><span class="dot" style="background:var(--fit)"></span><span class="dot" style="background:var(--tx)"></span><span class="dot" style="background:var(--pr-fill)"></span> <span class="full">Fit · Transform · Predict</span></a>
+    <nav class="nav" aria-label="Chapters"><ol>
+      <li><a href="#fit"><b>1</b><span>Learn</span></a></li>
+      <li><a href="#clean"><b>2</b><span>Clean</span></a></li>
+      <li><a href="#predict"><b>3</b><span>Guess</span></a></li>
+      <li><a href="#pipeline"><b>4</b><span>Pipeline</span></a></li>
+      <li><a href="#tokens"><b>5</b><span>Words to numbers</span></a></li>
+      <li><a href="#generate"><b>6</b><span>Generate</span></a></li>
+      <li><a href="#blanks"><b>7</b><span>Blanks and typos</span></a></li>
+      <li><a href="#big"><b>8</b><span>Big picture</span></a></li>
+    </ol></nav>
+    <button class="codetoggle" id="codeToggle" aria-pressed="false">Show code</button>
+  </div>
+  <div class="progress" id="progress"></div>
+</header>
+
+<main>
+
+<!-- ================= HERO ================= -->
+<section class="hero" id="intro">
+  <div>
+    <div class="eyebrow">How machines learn · a hands-on guide</div>
+    <h1><span class="v-fit" id="h-fit">Fit.</span><span class="v-tx" id="h-tx">Transform.</span><span class="v-pr" id="h-pr">Predict.</span></h1>
+    <p class="lede">Here's the secret nobody tells you at the AI hype party. Most of the AI you hear about today, from your spam filter to ChatGPT, is built on three steps. It <em>learns patterns from examples</em>, it <em>turns messy input into tidy numbers</em>, and it <em>takes a guess</em>. In scikit-learn, a popular machine learning toolkit, they're literally called <code>fit</code>, <code>transform</code> and <code>predict</code>. You're about to do all three yourself.</p>
+    <p class="hint" style="margin-top:14px">No maths degree required. Pinky promise. Code nerds can hit <b>Show code</b> up top.</p>
+    <a class="scrollhint" href="#fit"><span>↓</span> Scroll to start. Everything below is clickable.</a>
+  </div>
+  <figure class="hero-art" style="margin:0">
+    <svg id="heroSvg" viewBox="0 0 460 300" role="img" aria-label="Animation: scattered data points, some missing, are cleaned, a line is fitted through them, and a new guess appears on the line."></svg>
+    <figcaption class="hero-cap"><span id="hc0">raw data</span><span id="hc1">transform</span><span id="hc2">fit</span><span id="hc3">predict</span></figcaption>
+  </figure>
+</section>
+
+<!-- ================= 1 FIT ================= -->
+<section class="chapter" id="fit">
+  <div class="chapter-head"><span class="num">Chapter 1</span><span class="tag fit">fit()</span></div>
+  <h2>Learning is just finding the pattern</h2>
+  <div class="split">
+    <div class="prose">
+      <p>Meet a tiny ice-cream shop. Every day it writes down two things: <strong>how hot it was</strong> and <strong>how many ice creams it sold</strong>. Each dot is one day.</p>
+      <p>"Fitting" means finding the rule that matches the dots best. Here the rule is a straight line. The computer tries a line, measures how badly it misses each dot (those red dashes are its regrets), and nudges the line to regret a little less. Repeat until it can't do better.</p>
+      <p class="aside">Full honesty: for a straight line there's a shortcut formula that jumps straight to the best answer, and that's what scikit-learn uses. The guess-and-nudge method (called gradient descent) is what big models use, so that's what "Watch it learn" shows.</p>
+      <p><strong>Play with it:</strong> click empty space to add a day. Drag any dot around and watch the line chase it. Make a scorching day with zero sales and see one weird example drag the whole thing.</p>
+      <p><strong>Then try "Your turn".</strong> Drag the yellow handles and try to beat the machine. Spoiler: it's annoyingly good at this.</p>
+      <div class="bridge"><span class="eyebrow">In generative AI</span>ChatGPT-style models get fit the same basic way: guess, measure the miss, nudge, repeat. The big difference is scale. Our shop tunes 2 numbers from 10 days. Those models tune billions of numbers (the biggest go past a trillion) from trillions of words' worth of text. That happens ahead of time, at the AI company, and can cost many millions of dollars.</div>
+      <p class="aside">Our model has two numbers. It ain't much, but it's honest work.</p>
+    </div>
+    <div class="panel">
+      <svg class="chart" id="fitChart" aria-label="Scatter chart of temperature versus ice creams sold, with a fitted line. Click to add points, drag to move them."></svg>
+      <div class="row">
+        <button class="btn primary" id="gdBtn">Watch it learn</button>
+        <button class="btn" id="youBtn">Your turn: beat the machine</button>
+        <button class="btn" id="revealBtn" hidden>Show the machine's line</button>
+        <button class="btn" id="resetBtn">Reset the days</button>
+      </div>
+      <div class="readout" id="fitReadout"></div>
+      <details class="code"><summary>Show me the code</summary>
+<pre><span class="c-kw">from</span> sklearn.linear_model <span class="c-kw">import</span> LinearRegression
+
+X = [[<span class="c-st">13</span>], [<span class="c-st">16</span>], [<span class="c-st">19</span>], ...]   <span class="c-cm"># temperature each day</span>
+y = [<span class="c-st">52</span>, <span class="c-st">88</span>, <span class="c-st">110</span>, ...]         <span class="c-cm"># ice creams sold</span>
+
+model = LinearRegression()
+model.fit(X, y)                     <span class="c-cm"># learn the line</span>
+print(model.coef_, model.intercept_) <span class="c-cm"># the two numbers it learned</span></pre>
+      </details>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 2 CLEAN ================= -->
+<section class="chapter" id="clean">
+  <div class="chapter-head"><span class="num">Chapter 2</span><span class="tag tx">transform()</span></div>
+  <h2>Real data is messy, so we tidy up first</h2>
+  <div class="split">
+    <div class="prose">
+      <p>Real notebooks have gaps. Someone forgot to write the temperature. Someone wrote <code>hot!!</code> instead of a number, which is relatable but not helpful. Most classic models only speak numbers, so they take one look and say: computer says no. (A few, like some tree-based models, can cope with blanks on their own. Most can't.)</p>
+      <p>So you pick a cleaning strategy. Each one costs you something:</p>
+      <p><strong>Drop</strong> the messy rows. Everything left is true, but you threw away data.<br><strong>Fill with the average or middle value.</strong> You keep every row, but you just made numbers up.<br><strong>Let a model guess</strong> the missing temperature from that day's sales. Often the smartest move, because it uses the other clues in the row.</p>
+      <p>Keep an eye on Friday. 300 ice creams sold, so it was clearly a scorcher. Fill it with the average and it suddenly claims 25.6 °C. Friday deserved better.</p>
+      <div class="bridge"><span class="eyebrow">In generative AI</span>That last option, <em>predict the missing piece from its surroundings</em>, isn't just a cleaning trick. It's the core idea behind how generative AI gets trained. Hold that thought until chapter 7.</div>
+    </div>
+    <div class="panel">
+      <div class="row" role="group" aria-label="Cleaning strategy">
+        <button class="btn" data-strat="raw">Use it as-is</button>
+        <button class="btn" data-strat="drop">Drop messy rows</button>
+        <button class="btn" data-strat="mean">Fill with average</button>
+        <button class="btn" data-strat="median">Fill with middle value</button>
+        <button class="btn" data-strat="model">Let a model guess</button>
+      </div>
+      <div class="two">
+        <div class="tbl-wrap"><table class="data" id="cleanTbl"><thead><tr><th>Day</th><th>Temp °C</th><th>Sold</th></tr></thead><tbody></tbody></table></div>
+        <div style="display:flex; flex-direction:column; gap:10px; min-width:0">
+          <svg class="chart" id="cleanChart" aria-label="Chart of the cleaned data and the line learned from it."></svg>
+          <div class="msg" id="cleanMsg">Pick a strategy above.</div>
+        </div>
+      </div>
+      <details class="code"><summary>Show me the code</summary>
+<pre><span class="c-kw">import</span> pandas <span class="c-kw">as</span> pd
+<span class="c-kw">from</span> sklearn.impute <span class="c-kw">import</span> SimpleImputer
+
+df[<span class="c-st">"temp"</span>] = pd.to_numeric(df[<span class="c-st">"temp"</span>], errors=<span class="c-st">"coerce"</span>)  <span class="c-cm"># "hot!!" becomes a blank</span>
+
+df.dropna()                                        <span class="c-cm"># strategy: drop</span>
+SimpleImputer(strategy=<span class="c-st">"mean"</span>).fit_transform(X)    <span class="c-cm"># strategy: average</span>
+SimpleImputer(strategy=<span class="c-st">"median"</span>).fit_transform(X)  <span class="c-cm"># strategy: middle value</span>
+<span class="c-cm"># "let a model guess": IterativeImputer or KNNImputer</span></pre>
+      </details>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 3 PREDICT ================= -->
+<section class="chapter" id="predict">
+  <div class="chapter-head"><span class="num">Chapter 3</span><span class="tag pr">predict()</span></div>
+  <h2>Predicting is using the pattern on something new</h2>
+  <div class="split">
+    <div class="prose">
+      <p>Line learned. Now the shop can ask the useful question: <strong>"Tomorrow's forecast says 30 °C. How many ice creams do we stock?"</strong> The model just reads the answer off its line.</p>
+      <p>This uses the line <em>you</em> shaped in chapter 1. Go back, add some chaos, come back here. The guesses change.</p>
+      <p><strong>Now break it.</strong> Drag the temperature down to 2 °C or up to 48 °C. The model has never seen days like that, yet it answers with full confidence. Go cold enough and it predicts a <em>negative</em> number of ice creams. The shop would have to buy ice creams back from people. The model sees no problem with this.</p>
+      <div class="bridge"><span class="eyebrow">In generative AI</span>This is a close cousin of "hallucination". Ask a chatbot about something it barely saw in training and it can still produce a smooth, confident answer. Modern chatbots are trained to say "I'm not sure" more often, but underneath, <code>predict</code> always produces <em>something</em>.</div>
+    </div>
+    <div class="panel">
+      <svg class="chart" id="predChart" aria-label="The learned line with a movable prediction point."></svg>
+      <label for="tempSlider" class="hint">Tomorrow's temperature: <b id="tempVal" style="color:var(--ink)">30 °C</b></label>
+      <input type="range" id="tempSlider" min="0" max="50" step="1" value="30">
+      <div class="row">
+        <button class="btn" id="rouletteBtn">Spin the weather</button>
+        <span class="hint">Shaded area = temperatures it has actually seen</span>
+      </div>
+      <div><div class="eyebrow">Model's guess</div><div class="big v-pr" id="predOut">...</div></div>
+      <div class="cones" id="cones" aria-hidden="true"></div>
+      <div class="hint" style="margin-top:-6px">Each cone = 20 ice creams</div>
+      <div class="vibe" id="predVibe" aria-live="polite"></div>
+      <div class="warn" id="predWarn" aria-live="polite"></div>
+      <details class="code"><summary>Show me the code</summary>
+<pre>model.predict([[<span class="c-st">30</span>]])   <span class="c-cm"># about 250 ice creams</span>
+model.predict([[<span class="c-st">2</span>]])    <span class="c-cm"># a negative number. It never complains.</span></pre>
+      </details>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 4 PIPELINE ================= -->
+<section class="chapter" id="pipeline">
+  <div class="chapter-head"><span class="num">Chapter 4</span><span class="tag all">Pipeline</span></div>
+  <h2>Chain it all together. Learn once, reuse forever.</h2>
+  <div class="prose" style="margin-top:22px; max-width:48em">
+    <p>Real systems glue the steps into a <strong>pipeline</strong>. Plot twist: the cleaning steps learn too. "Fill with average" has to <em>learn</em> what the average is. "Rescale" learns what counts as hot or cold for this particular shop. So <code>fit</code> runs through the whole chain once. After that, each new day just flows through and every step reuses what it remembered. Work smarter, not harder.</p>
+    <p><strong>Try both buttons.</strong> Watch the little packet travel down the line, then feed it a <code>hot!!</code> and see the pipeline handle it without drama.</p>
+  </div>
+  <div class="panel" style="margin-top:22px">
+    <div class="row">
+      <button class="btn on" id="modeFit">1 · Learn from the notebook (fit)</button>
+      <button class="btn" id="modePred">2 · Send in a new day (predict)</button>
+      <label class="hint" for="newDay" id="newDayWrap" hidden>New day's temperature:
+        <select id="newDay" class="btn" style="padding:6px 8px">
+          <option value="31">31</option>
+          <option value="hot!!">hot!!</option>
+          <option value="">(blank)</option>
+          <option value="19">19</option>
+        </select>
+      </label>
+      <button class="btn primary" id="runPipe">Run it</button>
+    </div>
+    <div class="pipe" id="pipe">
+      <div class="packet" id="packet">ready</div>
+      <div class="station" data-i="0"><h3>Raw data</h3><span class="role">input</span><div class="learned"></div><div class="out"></div></div>
+      <div class="station s-tx" data-i="1"><h3>Fill blanks</h3><span class="role">transform · SimpleImputer</span><div class="learned"></div><div class="out"></div></div>
+      <div class="station s-tx" data-i="2"><h3>Rescale</h3><span class="role">transform · StandardScaler</span><div class="learned"></div><div class="out"></div></div>
+      <div class="station s-fit" data-i="3"><h3>Model</h3><span class="role">fit / predict · LinearRegression</span><div class="learned"></div><div class="out"></div></div>
+      <div class="station s-pr" data-i="4"><h3>Answer</h3><span class="role">output</span><div class="learned"></div><div class="out"></div></div>
+    </div>
+    <p class="hint" id="pipeNote">Already fitted. Press Run to watch it happen, or switch to predict mode.</p>
+    <details class="code"><summary>Show me the code</summary>
+<pre><span class="c-kw">from</span> sklearn.pipeline <span class="c-kw">import</span> make_pipeline
+
+pipe = make_pipeline(SimpleImputer(), StandardScaler(), LinearRegression())
+pipe.fit(X_notebook, y_sales)   <span class="c-cm"># every step learns, once</span>
+pipe.predict([[np.nan]])        <span class="c-cm"># a blank day: every step reuses what it learned</span></pre>
+    </details>
+  </div>
+  <div class="bridge" style="margin-top:22px; max-width:48em"><span class="eyebrow">In generative AI</span>A chatbot is a pipeline too: <b>your text → chopped into tokens → tokens turned into numbers → the model → pick a word → text back</b>. Every part was fit ahead of time, even the chopping part. While you chat, you're only triggering <code>transform</code> and <code>predict</code>.</div>
+</section>
+
+<!-- ================= 5 TOKENS ================= -->
+<section class="chapter" id="tokens">
+  <div class="chapter-head"><span class="num">Chapter 5</span><span class="tag tx">transform() for words</span></div>
+  <h2>Language models can't actually read. Words become numbers first.</h2>
+  <div class="split">
+    <div class="prose">
+      <p>Models only do arithmetic, so text has to become numbers. Step one: <strong>chop the text into tokens</strong>, which are common words or word chunks. Each token gets an ID number.</p>
+      <p>The list of chunks was itself <em>learned</em> from a mountain of text. Chunks that show up a lot get their own token. So the tokenizer is a transformer that was fit, same energy as the "fill with average" step. (The tokenizer on this page is a simplified toy with made-up ID numbers. Real ones split words a bit differently, but the idea is the same.)</p>
+      <p><strong>Type a typo.</strong> "love" is one familiar token. "lovee" gets chopped into <span class="mono">love</span> + <span class="mono">e</span>. No crash, unlike classic ML choking on <code>hot!!</code>. It just gets slightly odd pieces. Invent a word and watch it shatter into crumbs.</p>
+      <p>Step two: each token becomes a long list of numbers called an <strong>embedding</strong>. Think of it as GPS coordinates for meaning. Words used in similar ways end up as neighbours. Real embeddings have hundreds or thousands of numbers. The map here is hand-drawn to show the idea in two dimensions, not taken from a real model.</p>
+      <p><strong>And you can do maths with meaning.</strong> Take "hot", subtract "summer", add "winter". Where do you land? Big brain time, try the calculator under the map. On our hand-drawn map it works neatly. In real models it works some of the time: the famous example is king minus man plus woman landing near queen, though it's messier than the headlines suggest.</p>
+    </div>
+    <div class="panel">
+      <label for="tokIn" class="hint">Type anything:</label>
+      <input id="tokIn" class="tok-input" value="I lovee ice cream on a hot day" autocomplete="off" spellcheck="false">
+      <div class="row">
+        <button class="btn" data-tok="I love ice cream on a hot day">Clean sentence</button>
+        <button class="btn" data-tok="I lovee icecream on a hott day">With typos</button>
+        <button class="btn" data-tok="the flumbrigator works">Made-up word</button>
+      </div>
+      <div class="chips" id="chips" aria-live="polite"></div>
+      <div class="readout" id="tokStats"></div>
+      <div class="hint"><span class="chip" style="animation:none; display:inline-flex; vertical-align:middle"><span class="w">word</span></span> known token &nbsp; <span class="chip frag" style="animation:none; display:inline-flex; vertical-align:middle"><span class="w">piece</span></span> chunk of an unfamiliar word</div>
+      <svg class="map" id="meaningMap" viewBox="0 0 460 280" role="img" aria-label="Map of word meanings: warm weather words, cold weather words, food, pets and feelings cluster in groups. Words in your sentence are highlighted." style="width:100%; height:auto"></svg>
+      <div class="vecrow">
+        <select id="vA" aria-label="First word"></select><span>−</span>
+        <select id="vB" aria-label="Word to subtract"></select><span>+</span>
+        <select id="vC" aria-label="Word to add"></select><span>=</span>
+        <span class="vecres" id="vRes">?</span>
+        <button class="btn primary" id="vGo">Do the maths</button>
+      </div>
+      <div class="row"><span class="hint">Try:</span><button class="btn" data-vec="hot,summer,winter">hot − summer + winter</button><button class="btn" data-vec="cheese,pizza,chocolate">cheese − pizza + chocolate</button></div>
+      <details class="code"><summary>Show me the code</summary>
+<pre><span class="c-kw">from</span> transformers <span class="c-kw">import</span> AutoTokenizer
+tok = AutoTokenizer.from_pretrained(<span class="c-st">"gpt2"</span>)   <span class="c-cm"># a tokenizer that was already fit</span>
+tok.tokenize(<span class="c-st">"I lovee ice cream"</span>)            <span class="c-cm"># transform: text to pieces</span>
+tok.encode(<span class="c-st">"I lovee ice cream"</span>)              <span class="c-cm"># pieces to ID numbers</span>
+<span class="c-cm"># in word2vec-style embeddings, king - man + woman lands near queen</span></pre>
+      </details>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 6 GENERATE ================= -->
+<section class="chapter" id="generate">
+  <div class="chapter-head"><span class="num">Chapter 6</span><span class="tag pr">predict(), on repeat</span></div>
+  <h2>Generative AI is predict, over and over and over</h2>
+  <div class="split">
+    <div class="prose">
+      <p>This is the big one. <strong>A language model only ever predicts the next token</strong>, which is roughly the next word or chunk of a word. That's it. To write a whole answer, it predicts one word, glues it on, and predicts again. That loop is the "generative" part.</p>
+      <p>Two details make it work:</p>
+      <p><strong>1. It predicts chances, not one answer.</strong> Every possible next token gets a probability. scikit-learn calls this kind of output <code>predict_proba</code>.</p>
+      <p><strong>2. Then it rolls weighted dice.</strong> "Temperature" controls the dice. Turn it down and it nearly always takes the top word: safe, a bit boring. Crank it up and long shots get a real chance: creative, occasionally unhinged. That's a big reason the same question can get you a different answer each time.</p>
+      <p>Our toy was fit on the ten sentences below and only looks at the last word. You asked for ChatGPT? We have ChatGPT at home. Real models read thousands of words at once (some far more), which is why they stay on topic and ours wanders off to talk about cats.</p>
+      <div class="corpus" id="corpus"></div>
+    </div>
+    <div class="panel">
+      <div class="row">
+        <span class="hint">Start with:</span>
+        <button class="btn on" data-start="on">on</button>
+        <button class="btn" data-start="the">the</button>
+        <button class="btn" data-start="people">people</button>
+        <button class="btn" data-start="ice">ice</button>
+      </div>
+      <div class="sentence" id="sentence" aria-live="polite"></div>
+      <div class="loop" aria-hidden="true">
+        <span class="st" id="L0">read the text so far</span><span class="ar">→</span>
+        <span class="st" id="L1">score every next word</span><span class="ar">→</span>
+        <span class="st" id="L2">roll the dice</span><span class="ar">→</span>
+        <span class="st" id="L3">glue it on</span><span class="ar">→ repeat</span>
+      </div>
+      <div>
+        <div class="eyebrow" style="margin-bottom:8px" id="barsTitle">Chances for the next word</div>
+        <div class="bars" id="genBars"></div>
+        <p class="hint" style="margin-top:6px">Tip: click a bar to overrule the dice and pick it yourself.</p>
+      </div>
+      <div class="temp-row">
+        <label for="tempG">sensible</label>
+        <input type="range" id="tempG" min="0.1" max="2.5" step="0.05" value="1" aria-label="Temperature">
+        <span>unhinged</span>
+      </div>
+      <div class="hint" style="margin-top:-6px">Temperature: <b id="tempGVal" style="color:var(--ink)">1.00</b> <span id="tempMood"></span></div>
+      <div class="row">
+        <button class="btn primary" id="stepBtn">Predict next word</button>
+        <button class="btn" id="autoBtn">Write to the end</button>
+        <button class="btn" id="againBtn">Start over</button>
+      </div>
+      <details class="code"><summary>Show me the code</summary>
+<pre>text = <span class="c-st">"on a hot"</span>
+<span class="c-kw">for</span> _ <span class="c-kw">in</span> range(<span class="c-st">20</span>):
+    <span class="c-cm"># simplified pseudo-code, not a real library call</span>
+    probs = model.predict_proba(text)          <span class="c-cm"># a chance for every token</span>
+    word  = sample(probs, temperature=<span class="c-st">0.8</span>)   <span class="c-cm"># weighted dice roll</span>
+    text += word                               <span class="c-cm"># feed it back in</span>
+    <span class="c-kw">if</span> word == <span class="c-st">"."</span>: <span class="c-kw">break</span></pre>
+      </details>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 7 BLANKS ================= -->
+<section class="chapter" id="blanks">
+  <div class="chapter-head"><span class="num">Chapter 7</span><span class="tag tx">filling in the blanks</span></div>
+  <h2>Filling in missing values was the whole trick all along</h2>
+  <div class="split">
+    <div class="prose">
+      <p>Remember "let a model guess the missing temperature" from chapter 2? Generative AI is built on exactly that. To train one, take real text, <strong>hide a word, make the model guess it</strong>, check, nudge, repeat billions of times. Nobody has to label anything. The text is its own answer key. That's the first and biggest stage of training. Chatbots then get extra rounds of training with human feedback so they follow instructions and behave.</p>
+      <p>GPT-style models always hide the <em>next</em> word. Others, like BERT, hide words in the middle. Many image generators (called diffusion models) do it with pictures: they bury an image in noise and learn to dig it back out.</p>
+      <p><strong>Typos:</strong> language models have no typo-cleaning step. They cope because their training text was absolutely full of typos. The model has seen things. So it learned that "lovee" next to "pizza" means love. The robustness was <em>learned</em>, not programmed in.</p>
+      <p><strong>Hallucination:</strong> filling a blank is always a guess. Ask about something that doesn't exist and it fills the blank anyway. Trust me bro energy.</p>
+    </div>
+    <div class="panel">
+      <div class="tabs" role="tablist">
+        <button class="btn on" data-bl="cat" role="tab" aria-selected="true">A normal blank</button>
+        <button class="btn" data-bl="typo" role="tab" aria-selected="false">With a typo</button>
+        <button class="btn" data-bl="mars" role="tab" aria-selected="false">A trick question</button>
+      </div>
+      <div class="prompt" id="blPrompt"></div>
+      <div class="row" id="typoFix" hidden>
+        <button class="btn" id="typoToggle">Fix the typo and compare</button>
+      </div>
+      <div class="bars" id="blBars"></div>
+      <div class="row"><button class="btn primary" id="fillBtn">Fill in the blank</button></div>
+      <div class="msg" id="blMsg"></div>
+      <p class="hint">These percentages are illustrations, shaped like what real models produce.</p>
+      <details class="code"><summary>Show me the code</summary>
+<pre><span class="c-kw">from</span> transformers <span class="c-kw">import</span> pipeline
+fill = pipeline(<span class="c-st">"fill-mask"</span>, model=<span class="c-st">"bert-base-uncased"</span>)
+fill(<span class="c-st">"The cat sat on the [MASK]."</span>)   <span class="c-cm"># imputation, but for words</span></pre>
+      </details>
+    </div>
+  </div>
+
+  <div class="panel game">
+    <div class="row" style="justify-content:space-between">
+      <div><div class="eyebrow">Mini game</div><h3 style="font-size:24px; margin-top:4px">Be the model</h3></div>
+      <div class="score" id="score"></div>
+    </div>
+    <p class="hint">This is how training works. A word is hidden. You guess, and so does our toy model from chapter 6. It only gets to peek at the word right before the blank, while you read the whole sentence. Unfair advantage, honestly.</p>
+    <div class="gsent" id="gSent" aria-live="polite"></div>
+    <div class="row" id="gOpts"></div>
+    <div class="msg" id="gMsg">Pick a word.</div>
+    <div class="row"><button class="btn" id="gNext">Next round</button></div>
+  </div>
+
+  <div class="vs">
+    <div class="side">
+      <span class="tag tx" style="align-self:flex-start">Classic ML</span>
+      <h3>Messy input usually breaks it</h3>
+      <div class="io">temperature = "hot!!"</div>
+      <div class="io bad">Error: could not convert 'hot!!' to a number</div>
+      <p class="hint">A person has to design the cleaning: drop it, fill it, or guess it. The rules are explicit and predictable.</p>
+    </div>
+    <div class="side">
+      <span class="tag pr" style="align-self:flex-start">Generative AI</span>
+      <h3>Messy input just works, mostly</h3>
+      <div class="io">"wat is teh capitol of frnace"</div>
+      <div class="io good"><span id="typeOut" class="typewrite"></span></div>
+      <p class="hint">No cleaning rules at all. It learned how to cope with mess from examples. The catch: it never leaves a blank empty. When it doesn't know, it may just make something up.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 8 BIG PICTURE ================= -->
+<section class="chapter" id="big">
+  <div class="chapter-head"><span class="num">Chapter 8</span><span class="tag all">the big picture</span></div>
+  <h2>Same blueprint, wildly different scale</h2>
+  <div class="map-tbl-wrap">
+    <table class="mapt">
+      <thead><tr><th>Step</th><th>Plain words</th><th>Our ice-cream model</th><th>ChatGPT-style model</th></tr></thead>
+      <tbody>
+        <tr><td class="v-fit">fit</td><td>Learn patterns from examples</td><td>10 days of data, 2 numbers tuned, done in milliseconds on your laptop</td><td>Trillions of words, billions of numbers tuned (sometimes over a trillion), weeks to months on thousands of chips. Done ahead of time by the AI company, then polished with human feedback.</td></tr>
+        <tr><td class="v-tx">transform</td><td>Turn input into clean numbers</td><td>Fill blanks, rescale temperatures</td><td>Chop text into tokens, turn tokens into embeddings. Inside the model, every layer transforms the numbers again.</td></tr>
+        <tr><td class="v-pr">predict</td><td>Take a guess about something new</td><td>One number: "about 250 ice creams"</td><td>Chances for every possible next token, a dice roll, then repeat until the answer is done</td></tr>
+        <tr><td>messy input</td><td>What happens with gaps and typos</td><td>Usually a person designs the cleaning rules, or it errors out</td><td>No rules. Tolerance was learned from messy training text.</td></tr>
+        <tr><td>when unsure</td><td>What happens far from its examples</td><td>Keeps drawing the line, all the way to impossible negatives</td><td>Writes fluent, confident text that can be wrong: hallucination</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3 style="margin-top:44px; font-size:26px">Where the blueprint bends</h3>
+  <div class="bends">
+    <div class="bend"><h3>You never call <code>fit</code></h3><p>With a chatbot, the learning already happened. "Fine-tuning" is a smaller second round of fitting on specialised examples, like teaching our model about one particular beach kiosk.</p></div>
+    <div class="bend"><h3>Your prompt is a temporary <code>fit</code></h3><p>Show a chatbot three examples in your message and it follows the pattern. Nothing from training changes; it adapts only for this chat. That's called in-context learning, and classic models can't do it.</p></div>
+    <div class="bend"><h3>Predict became a loop</h3><p>Classic <code>predict</code> hands back one answer. Generative AI calls predict once per token, often hundreds or thousands of times, feeding each output back in. That loop plus the dice roll is what makes it "generative".</p></div>
+    <div class="bend"><h3>Cleaning became learned</h3><p>In classic ML a person writes the cleaning rules. In generative AI, coping with typos, slang and gaps comes from examples. More flexible, less predictable.</p></div>
+  </div>
+
+  <h3 style="margin-top:48px; font-size:26px">Quick vibe check</h3>
+  <p class="hint" style="margin-top:6px">Is each of these fit, transform or predict? <span id="qScore"></span></p>
+  <div class="quiz" id="quiz"></div>
+
+  <div class="closing">
+    <div class="q">Wait. So it's all just fit, transform, predict?</div>
+    <div class="a">Always has been.</div>
+    <p class="hint" style="max-width:44em; margin-top:8px"><b style="color:var(--ink-2)">Okay, the fine print.</b> That's a meme, not a textbook definition. Fit, transform, predict is the blueprint for <em>machine learning</em>, which powers most of the AI you hear about today. It isn't the whole story of AI. For decades, AI mostly meant hand-written rules and search (think classic chess engines), with nothing learned from data. Some methods, like reinforcement learning (how AlphaGo learned to play Go), mix learning and acting in one ongoing loop. And today's AI products wrap extra machinery around the model, such as web search, memory and tools.</p>
+  </div>
+  <footer>This page simplifies on purpose. Every model on it is a tiny toy that runs in your browser, and illustrative numbers are labelled as such.<br><span style="color:var(--ink-2)">Made by <b>Saad Zarook</b></span></footer>
+</section>
+</main>
+
+<script>
+(function(){
+const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+const reduce=window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+const fmt=(n,d=0)=>{const s=Math.abs(n).toFixed(d);return (n<0?'−':'')+s};
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const rnd=n=>Math.floor(Math.random()*n);
+const shuffle=a=>{for(let i=a.length-1;i>0;i--){const j=rnd(i+1);[a[i],a[j]]=[a[j],a[i]]}return a};
+
+/* ---------- code toggle ---------- */
+const ct=$('#codeToggle');
+ct.addEventListener('click',()=>{const on=ct.getAttribute('aria-pressed')!=='true';ct.setAttribute('aria-pressed',on);ct.textContent=on?'Hide code':'Show code';$$('details.code').forEach(d=>d.open=on)});
+
+/* ---------- nav highlight, background tint, progress ---------- */
+const navLinks=$$('.nav a'),bg=$('#bg');
+const io=new IntersectionObserver(es=>{es.forEach(e=>{if(!e.isIntersecting)return;bg.dataset.ch=e.target.id;navLinks.forEach(a=>{const on=a.getAttribute('href')==='#'+e.target.id;a.classList.toggle('on',on);if(on)a.scrollIntoView({block:'nearest',inline:'nearest'})})})},{rootMargin:'-45% 0px -50% 0px'});
+$$('section.chapter, section.hero').forEach(s=>io.observe(s));
+const prog=$('#progress');
+function onScroll(){const h=document.documentElement;const k=h.scrollTop/Math.max(1,h.scrollHeight-h.clientHeight);prog.style.transform=`scaleX(${clamp(k,0,1)})`}
+addEventListener('scroll',onScroll,{passive:true});onScroll();
+
+/* ---------- maths ---------- */
+function fitLS(p){const n=p.length;if(n<2)return{w:0,b:n?p[0][1]:0};let mx=0,my=0;p.forEach(([x,y])=>{mx+=x;my+=y});mx/=n;my/=n;let sxx=0,sxy=0;p.forEach(([x,y])=>{sxx+=(x-mx)**2;sxy+=(x-mx)*(y-my)});const w=sxx?sxy/sxx:0;return{w,b:my-w*mx}}
+const avgMiss=(p,m)=>Math.sqrt(p.reduce((s,[x,y])=>s+(y-(m.w*x+m.b))**2,0)/p.length); // typical miss (root mean square), which the best-fit line truly minimises
+function makeTween(draw){let cur=null,raf=0;return{get:()=>cur,set(m){cancelAnimationFrame(raf);cur={...m};draw(cur)},to(m,ms=450){cancelAnimationFrame(raf);if(!cur||reduce){cur={...m};draw(cur);return}const f0={...cur},t0=performance.now();const f=t=>{const k=Math.min(1,(t-t0)/ms),e=1-(1-k)**3;cur={w:f0.w+(m.w-f0.w)*e,b:f0.b+(m.b-f0.b)*e};draw(cur);if(k<1)raf=requestAnimationFrame(f)};raf=requestAnimationFrame(f)}}}
+
+/* ---------- chart builder ---------- */
+let cid=0;
+function makeChart(svg,o){
+  const W=o.W||600,H=o.H||340,m={l:56,r:18,t:14,b:46},pw=W-m.l-m.r,ph=H-m.t-m.b;
+  svg.setAttribute('viewBox',`0 0 ${W} ${H}`);
+  const sx=x=>m.l+(x-o.x0)/(o.x1-o.x0)*pw, sy=y=>m.t+ph-(y-o.y0)/(o.y1-o.y0)*ph;
+  const id='clip'+(cid++);
+  let s=`<defs><clipPath id="${id}"><rect x="${m.l}" y="${m.t}" width="${pw}" height="${ph}"/></clipPath></defs><rect x="${m.l}" y="${m.t}" width="${pw}" height="${ph}" fill="transparent" class="plotbg"/>`;
+  o.xt.forEach(t=>{s+=`<line class="gl" x1="${sx(t)}" x2="${sx(t)}" y1="${m.t}" y2="${m.t+ph}"/><text class="tk" x="${sx(t)}" y="${m.t+ph+18}" text-anchor="middle">${t}</text>`});
+  o.yt.forEach(t=>{s+=`<line class="gl" y1="${sy(t)}" y2="${sy(t)}" x1="${m.l}" x2="${m.l+pw}"/><text class="tk" x="${m.l-8}" y="${sy(t)+4}" text-anchor="end">${t}</text>`});
+  s+=`<text class="al" x="${m.l+pw/2}" y="${H-6}" text-anchor="middle">${o.xl}</text><text class="al" transform="translate(15 ${m.t+ph/2}) rotate(-90)" text-anchor="middle">${o.yl}</text>`;
+  s+=`<g class="Lb" clip-path="url(#${id})"></g><g class="Ll fitline" clip-path="url(#${id})"></g><g class="Lp"></g><g class="Lt"></g>`;
+  svg.innerHTML=s;
+  return{sx,sy,m,pw,ph,o,svg,back:svg.querySelector('.Lb'),line:svg.querySelector('.Ll'),pts:svg.querySelector('.Lp'),top:svg.querySelector('.Lt'),
+    lineStr:(w,b,cls='')=>`<line class="${cls}" x1="${sx(o.x0)}" y1="${sy(w*o.x0+b)}" x2="${sx(o.x1)}" y2="${sy(w*o.x1+b)}"/>`,
+    toData(e){const p=svg.createSVGPoint();p.x=e.clientX;p.y=e.clientY;const q=p.matrixTransform(svg.getScreenCTM().inverse());return{x:o.x0+(q.x-m.l)/pw*(o.x1-o.x0),y:o.y0+(m.t+ph-q.y)/ph*(o.y1-o.y0),inside:q.x>=m.l&&q.x<=m.l+pw&&q.y>=m.t&&q.y<=m.t+ph}}};
+}
+
+/* ---------- HERO animation ---------- */
+(function hero(){
+  const svg=$('#heroSvg');
+  const P=[[40,238,0],[78,214,0],[112,206,1],[150,176,0],[186,170,0],[222,140,1],[258,128,0],[296,104,0],[330,96,1],[362,70,0]];
+  const guessX=412,guessY=48;
+  let g=`<g stroke="var(--grid)">`;for(let x=20;x<=440;x+=40)g+=`<line x1="${x}" y1="20" x2="${x}" y2="270"/>`;for(let y=30;y<=270;y+=40)g+=`<line x1="20" y1="${y}" x2="440" y2="${y}"/>`;g+='</g>';
+  g+=`<line id="hLine" x1="20" y1="262" x2="440" y2="36" stroke="var(--fit)" stroke-width="4" stroke-linecap="round" pathLength="1" stroke-dasharray="1" stroke-dashoffset="1" style="transition:stroke-dashoffset 1.1s ease"/>`;
+  P.forEach(([x,y,miss],i)=>{
+    if(miss){g+=`<g class="hm" data-i="${i}"><circle cx="${x}" cy="${y+(i%2?40:-36)}" r="9" fill="var(--card)" stroke="var(--bad)" stroke-width="2" stroke-dasharray="3 3" style="transition:all .8s ease"/><text x="${x}" y="${y+(i%2?40:-36)+4}" text-anchor="middle" font-family="var(--mono)" font-size="11" fill="var(--bad)" style="transition:opacity .4s">?</text></g>`}
+    else g+=`<circle cx="${x}" cy="${y}" r="8" fill="var(--ink)" stroke="var(--card)" stroke-width="2"/>`;
+  });
+  g+=`<g id="hGuess" style="opacity:0; transition:opacity .5s"><line x1="${guessX}" y1="${guessY}" x2="${guessX}" y2="270" stroke="var(--pr-fill)" stroke-width="2" stroke-dasharray="4 4"/><circle cx="${guessX}" cy="${guessY}" r="11" fill="var(--pr-fill)" stroke="var(--card)" stroke-width="3"/><text x="${guessX-16}" y="${guessY+5}" text-anchor="end" font-family="var(--mono)" font-size="13" font-weight="600" fill="var(--pr)">guess</text></g>`;
+  svg.innerHTML=g;
+  const caps=[0,1,2,3].map(i=>$('#hc'+i));
+  function set(phase){
+    caps.forEach((c,i)=>c.classList.toggle('on',i===phase));
+    $$('#heroSvg .hm').forEach(el=>{const i=+el.dataset.i,[x,y]=P[i];const c=el.querySelector('circle'),t=el.querySelector('text');
+      if(phase>=1){c.setAttribute('cy',y);c.setAttribute('fill','var(--tx)');c.setAttribute('stroke','var(--card)');c.setAttribute('stroke-dasharray','0');c.setAttribute('r','8');t.style.opacity=0}
+      else{c.setAttribute('cy',y+(i%2?40:-36));c.setAttribute('fill','var(--card)');c.setAttribute('stroke','var(--bad)');c.setAttribute('stroke-dasharray','3 3');c.setAttribute('r','9');t.style.opacity=1;t.setAttribute('y',y+(i%2?40:-36)+4)}});
+    $('#hLine').style.strokeDashoffset=phase>=2?0:1;
+    $('#hGuess').style.opacity=phase>=3?1:0;
+    if(!reduce)[['#h-fit',2],['#h-tx',1],['#h-pr',3]].forEach(([s,p])=>{const on=phase===0||phase===p;$(s).style.opacity=on?1:.28;$(s).style.transform=(on&&phase)?'translateX(8px)':'none'});
+  }
+  if(reduce){set(3);return}
+  let ph=0;set(0);setInterval(()=>{ph=(ph+1)%5;set(Math.min(ph,3))},1700);
+})();
+
+/* ---------- 1 FIT ---------- */
+const BASE=[[13,52],[16,88],[19,110],[21,150],[24,168],[26,215],[29,232],[31,270],[34,295],[37,338]];
+let pts=BASE.map(p=>[...p]), userAdded=new Set();
+let model=fitLS(pts), mode='machine', revealed=false, you={y1:120,y2:200}; // your line: value at x=12 and x=38
+const listeners=[];
+const c1=makeChart($('#fitChart'),{x0:10,x1:40,y0:0,y1:400,xt:[10,15,20,25,30,35,40],yt:[0,100,200,300,400],xl:'Temperature (°C)',yl:'Ice creams sold'});
+const youModel=()=>{const w=(you.y2-you.y1)/26;return{w,b:you.y1-w*12}};
+const tw1=makeTween(draw1);
+function draw1(m){
+  const L=mode==='you'?youModel():m;
+  c1.back.innerHTML=pts.map(([x,y])=>`<line class="resid" x1="${c1.sx(x)}" x2="${c1.sx(x)}" y1="${c1.sy(y)}" y2="${c1.sy(L.w*x+L.b)}"/>`).join('');
+  if(mode==='you'){
+    c1.line.innerHTML=(revealed?c1.lineStr(model.w,model.b,'ghost'):'')+c1.lineStr(L.w,L.b,'youline');
+    c1.top.innerHTML=[[12,you.y1,1],[38,you.y2,2]].map(([x,y,h])=>`<circle class="handle" data-h="${h}" cx="${c1.sx(x)}" cy="${c1.sy(y)}" r="11"/>`).join('');
+  }else{c1.line.innerHTML=c1.lineStr(m.w,m.b);c1.top.innerHTML=''}
+  c1.pts.innerHTML=pts.map(([x,y],i)=>`<circle class="pt${userAdded.has(i)?' new':''}" data-i="${i}" cx="${c1.sx(x)}" cy="${c1.sy(y)}" r="7"/>`).join('');
+}
+function readout1(m,extra){
+  const miss=avgMiss(pts,m);
+  if(mode==='you'){
+    const ym=avgMiss(pts,youModel()),r=ym/miss;
+    const verdict=r<=1.04?'Okay, big brain. You basically are gradient descent now.':r<=1.3?'So close. A tiny nudge more.':r<=2?'Not bad. The machine is still quietly judging you.':'Bold strategy. Keep dragging.';
+    $('#fitReadout').innerHTML=`Your line's typical miss: <b>${ym.toFixed(0)}</b> per day<div class="meter you"><span style="width:${clamp(ym/150*100,2,100)}%"></span></div><div style="margin-top:8px">The machine's typical miss: <b>${miss.toFixed(0)}</b></div><div class="meter"><span style="width:${clamp(miss/150*100,2,100)}%"></span></div><div style="margin-top:8px"><b>${verdict}</b></div>`;
+    return;
+  }
+  $('#fitReadout').innerHTML=`${extra?extra+'<br>':''}Learned rule: <b>sold ≈ ${m.w.toFixed(1)} × temperature ${m.b<0?'−':'+'} ${Math.abs(m.b).toFixed(0)}</b><br>In plain words: each extra degree means about <b>${fmt(m.w,0)}</b> more ice creams${m.w>5?'. Stonks.':m.w<0?'. Hotter days sell less? Chaos.':'.'}<br>Typical miss: <b>${miss.toFixed(0)}</b> ice creams per day <span class="hint">(big misses count extra)</span><div class="meter"><span style="width:${clamp(miss/150*100,2,100)}%"></span></div>`;
+}
+function refit(live){model=fitLS(pts);live?tw1.set(model):tw1.to(model);readout1(mode==='you'?model:model);listeners.forEach(f=>f())}
+let drag=null,gdRunning=false;
+const s1=$('#fitChart');
+s1.addEventListener('pointerdown',e=>{
+  if(gdRunning)return;const t=e.target,d=c1.toData(e);
+  if(t.dataset.h){drag={h:+t.dataset.h}}
+  else if(t.dataset.i!==undefined){drag={i:+t.dataset.i}}
+  else if(d.inside&&mode==='machine'){pts.push([Math.round(d.x*10)/10,Math.round(Math.max(0,d.y))]);userAdded.add(pts.length-1);refit();drag={i:pts.length-1}}
+  else return;
+  s1.setPointerCapture(e.pointerId);e.preventDefault();
+});
+s1.addEventListener('pointermove',e=>{
+  if(!drag)return;const d=c1.toData(e);
+  if(drag.h){you[drag.h===1?'y1':'y2']=clamp(d.y,0,400);draw1(model);readout1(model)}
+  else{pts[drag.i]=[Math.round(clamp(d.x,10,40)*10)/10,Math.round(clamp(d.y,0,400))];refit(true)}
+});
+const endDrag=()=>{drag=null};
+s1.addEventListener('pointerup',endDrag);s1.addEventListener('pointercancel',endDrag);
+function setMode1(m){mode=m;revealed=false;$('#youBtn').textContent=m==='you'?'Back to the machine':'Your turn: beat the machine';$('#youBtn').classList.toggle('on',m==='you');$('#revealBtn').hidden=m!=='you';$('#revealBtn').textContent="Show the machine's line";$('#gdBtn').disabled=m==='you';draw1(tw1.get()||model);readout1(model)}
+$('#youBtn').addEventListener('click',()=>{if(gdRunning)return;setMode1(mode==='you'?'machine':'you')});
+$('#revealBtn').addEventListener('click',()=>{revealed=!revealed;$('#revealBtn').textContent=revealed?"Hide the machine's line":"Show the machine's line";draw1(model)});
+$('#resetBtn').addEventListener('click',()=>{if(gdRunning)return;pts=BASE.map(p=>[...p]);userAdded=new Set();refit()});
+$('#gdBtn').addEventListener('click',()=>{
+  if(gdRunning||mode==='you')return;gdRunning=true;$('#gdBtn').disabled=true;
+  let a=0,c=0;const lr=0.24,N=160;let step=0;
+  const xs=pts.map(p=>(p[0]-25)/10),ys=pts.map(p=>p[1]/100),n=pts.length;
+  const conv=()=>({w:10*a,b:100*c-250*a});
+  function tick(){
+    for(let k=0;k<(reduce?N:1);k++){let da=0,dc=0;for(let i=0;i<n;i++){const r=a*xs[i]+c-ys[i];da+=2*r*xs[i]/n;dc+=2*r/n}a-=lr*da;c-=lr*dc;step++}
+    const cur=conv();tw1.set(cur);readout1(cur,`Attempt <b>#${step}</b>: guess a line, measure the misses, nudge.`);
+    if(step<N)requestAnimationFrame(tick);else{gdRunning=false;$('#gdBtn').disabled=false;model=fitLS(pts);tw1.set(model);readout1(model,`Done after <b>${N}</b> nudges. It literally can't miss by less.`);listeners.forEach(f=>f())}
+  }
+  tick();
+});
+tw1.set(model);readout1(model);
+
+/* ---------- 2 CLEAN ---------- */
+const DAYS=[['Mon','22',150],['Tue','25',190],['Wed','',170],['Thu','31',260],['Fri','hot!!',300],['Sat','35',310],['Sun','18',105],['Mon','28',230],['Tue','?',140],['Wed','20',125]];
+const isNum=v=>v!==''&&!isNaN(+v);
+const cleanTemps=DAYS.filter(d=>isNum(d[1])).map(d=>+d[1]);
+const mean=cleanTemps.reduce((a,b)=>a+b,0)/cleanTemps.length;
+const sorted=[...cleanTemps].sort((a,b)=>a-b),median=sorted.length%2?sorted[(sorted.length-1)/2]:(sorted[sorted.length/2-1]+sorted[sorted.length/2])/2;
+const rev=fitLS(DAYS.filter(d=>isNum(d[1])).map(d=>[d[2],+d[1]]));
+const c2=makeChart($('#cleanChart'),{x0:10,x1:40,y0:0,y1:400,xt:[10,20,30,40],yt:[0,100,200,300,400],xl:'Temperature (°C)',yl:'Sold',W:420,H:300});
+c2.pts.innerHTML=DAYS.map((d,i)=>`<circle class="pt" data-d="${i}" r="0" style="cx:${c2.sx(25)}px;cy:${c2.sy(0)}px"/>`).join('');
+const dots2=$$('#cleanChart circle[data-d]');
+const tw2=makeTween(m=>{c2.line.innerHTML=c2.lineStr(m.w,m.b)});
+function renderClean(strat){
+  $$('[data-strat]').forEach(b=>b.classList.toggle('on',b.dataset.strat===strat));
+  const rows=[],used=[];
+  DAYS.forEach(([day,t,s],i)=>{
+    let cls='',val=t===''?'(blank)':t,drop=false,filled=false,num=isNum(t)?+t:null;
+    if(!isNum(t)){
+      if(strat==='raw')cls='messy';
+      else if(strat==='drop'){cls='messy';drop=true}
+      else{num=strat==='mean'?mean:strat==='median'?median:rev.w*s+rev.b;val=num.toFixed(1);cls='fixed';filled=true}
+    }
+    const dot=dots2[i];
+    if(!drop&&num!==null&&strat!=='raw'||(strat==='raw'&&num!==null)){used.push([num,s]);dot.style.cx=c2.sx(num)+'px';dot.style.cy=c2.sy(s)+'px';dot.setAttribute('r',filled?7:6);dot.setAttribute('class','pt'+(filled?' filled':''))}
+    else{dot.setAttribute('r',0);dot.style.cy=c2.sy(0)+'px'}
+    rows.push(`<tr class="${drop?'dropped':''}"><td>${day}</td><td class="t ${cls}">${val}</td><td>${s}</td></tr>`);
+  });
+  $('#cleanTbl tbody').innerHTML=rows.join('');
+  const msg=$('#cleanMsg');
+  c2.top.innerHTML='';
+  if(strat==='raw'){
+    c2.line.style.opacity=0;
+    c2.top.innerHTML=`<g class="${reduce?'':'shake'}" style="transform-box:fill-box"><text x="${c2.sx(25)}" y="${c2.sy(200)}" text-anchor="middle" font-family="var(--display)" font-weight="800" font-size="26" fill="var(--bad)">Computer says no</text></g>`;
+    msg.className='msg err';msg.innerHTML=`<b>Error:</b> could not convert <code>'hot!!'</code> to a number. The model refuses to learn a single thing until the data is clean.`;
+    const p=$('#cleanChart').closest('.two');if(!reduce){p.classList.remove('shake');void p.offsetWidth;p.classList.add('shake')}
+    return;
+  }
+  c2.line.style.opacity=1;
+  const m=fitLS(used);tw2.to(m,700);
+  const text={
+    drop:`Kept <b>${used.length}</b> of 10 days. Every value is real, but three days of evidence just vanished.`,
+    mean:`Filled 3 blanks with the average, <b>${mean.toFixed(1)} °C</b>. Hollow dots are made up. Poor Friday (300 sold) now looks like a mild day and floats way off the line.`,
+    median:`Filled with the middle value, <b>${median} °C</b>. Similar to the average, but one extreme day can't drag it around.`,
+    model:`A small model learned "busy days are hot days" from the clean rows and guessed each blank from its sales. Friday becomes <b>${(rev.w*300+rev.b).toFixed(1)} °C</b>. The hollow dots land right on the pattern. Chef's kiss.`
+  }[strat];
+  msg.className='msg ok';msg.innerHTML=text+`<br><span class="hint">Learned: each degree means about ${m.w.toFixed(1)} more sold.</span>`;
+}
+$$('[data-strat]').forEach(b=>b.addEventListener('click',()=>renderClean(b.dataset.strat)));
+renderClean('raw');
+
+/* ---------- 3 PREDICT ---------- */
+const c3=makeChart($('#predChart'),{x0:0,x1:50,y0:-100,y1:500,xt:[0,10,20,30,40,50],yt:[-100,0,100,200,300,400,500],xl:'Temperature (°C)',yl:'Ice creams sold'});
+const cone=(i)=>`<svg viewBox="0 0 20 30" width="16" height="24" style="animation-delay:${i*18}ms"><path d="M3.5 12 L10 29 L16.5 12Z" fill="var(--cone)"/><circle cx="10" cy="9" r="7" fill="${i%3===2?'var(--scoop-2)':'var(--scoop)'}"/></svg>`;
+let coneCount=0;
+function draw3(){
+  const t=+$('#tempSlider').value;$('#tempVal').textContent=t+' °C';
+  const xs=pts.map(p=>p[0]),lo=Math.min(...xs),hi=Math.max(...xs);
+  c3.back.innerHTML=`<rect class="seen" x="${c3.sx(lo)}" y="${c3.m.t}" width="${c3.sx(hi)-c3.sx(lo)}" height="${c3.ph}"/><line x1="${c3.sx(0)}" x2="${c3.sx(50)}" y1="${c3.sy(0)}" y2="${c3.sy(0)}" stroke="var(--muted)" stroke-width="1.5"/>`;
+  c3.line.innerHTML=c3.lineStr(model.w,model.b);
+  const y=model.w*t+model.b;
+  c3.pts.innerHTML=pts.map(([x,yy])=>`<circle class="pt faint" cx="${c3.sx(x)}" cy="${c3.sy(yy)}" r="5"/>`).join('');
+  const cy=clamp(c3.sy(y),c3.m.t,c3.m.t+c3.ph);
+  c3.top.innerHTML=`<line x1="${c3.sx(t)}" x2="${c3.sx(t)}" y1="${c3.m.t+c3.ph}" y2="${cy}" stroke="var(--pr-fill)" stroke-width="2" stroke-dasharray="4 4"/><line x1="${c3.m.l}" x2="${c3.sx(t)}" y1="${cy}" y2="${cy}" stroke="var(--pr-fill)" stroke-width="2" stroke-dasharray="4 4"/><circle cx="${c3.sx(t)}" cy="${cy}" r="10" fill="var(--pr-fill)" stroke="var(--card)" stroke-width="3"/>`;
+  $('#predOut').textContent='≈ '+fmt(y)+' ice creams';
+  const n=clamp(Math.round(y/20),0,30),box=$('#cones');
+  if(n>coneCount){let s='';for(let i=coneCount;i<n;i++)s+=cone(i);box.insertAdjacentHTML('beforeend',s)}
+  else while(box.children.length>n)box.lastChild.remove();
+  coneCount=n;
+  const w=$('#predWarn'),v=$('#predVibe');
+  if(y<0){v.textContent='This is fine.';w.textContent=`It predicts ${fmt(y)} ice creams, which is impossible. The model has no idea. It just follows its line.`}
+  else if(t<lo||t>hi){v.textContent='Confidently guessing outside its comfort zone.';w.textContent=`It has only seen days from ${lo} °C to ${hi} °C. Out here it's making it up as it goes.`}
+  else{v.textContent=y>280?'Hot day. Stonks.':y<120?'Slow day. Maybe bring a jacket.':'';w.textContent=''}
+}
+$('#tempSlider').addEventListener('input',draw3);listeners.push(draw3);draw3();
+$('#rouletteBtn').addEventListener('click',()=>{
+  const sl=$('#tempSlider'),from=+sl.value,to=rnd(51),t0=performance.now(),ms=reduce?0:1100,spins=2;
+  (function f(t){const k=ms?Math.min(1,(t-t0)/ms):1,e=1-(1-k)**3;const raw=from+(to+50*spins-from)*e;sl.value=Math.round(((raw%51)+51)%51);draw3();if(k<1)requestAnimationFrame(f);else{sl.value=to;draw3()}})(t0);
+});
+
+/* ---------- 4 PIPELINE ---------- */
+const filledT=DAYS.map(d=>isNum(d[1])?+d[1]:mean);
+const sMean=filledT.reduce((a,b)=>a+b,0)/filledT.length;
+const sStd=Math.sqrt(filledT.reduce((a,b)=>a+(b-sMean)**2,0)/filledT.length);
+const pm=fitLS(filledT.map((t,i)=>[(t-sMean)/sStd,DAYS[i][2]]));
+let pipeMode='fit',pipeTimer=null,pktIdx=4;
+const st=$$('.station'),packet=$('#packet');
+function movePacket(i,label){pktIdx=i;const s=st[i];packet.style.transform=`translate(${s.offsetLeft+s.offsetWidth/2}px,${s.offsetTop}px) translate(-50%,-50%)`;if(label!=null)packet.textContent=label}
+addEventListener('resize',()=>movePacket(pktIdx));
+function setStation(i,learned,out,learnt){const s=st[i];s.querySelector('.learned').innerHTML=learned;s.querySelector('.out').innerHTML=out;s.classList.toggle('learnt',!!learnt)}
+function clearPipe(){st.forEach((s,i)=>{s.classList.remove('active','learnt');setStation(i,'','')})}
+function pipeSteps(){
+  if(pipeMode==='fit')return[
+    ['notebook',()=>setStation(0,'The notebook','10 days, 3 messy temps')],
+    ['learning...',()=>setStation(1,`Learns: average = ${mean.toFixed(1)} °C`,'10 complete days',1)],
+    ['learning...',()=>setStation(2,`Learns: typical = ${sMean.toFixed(1)} °C, spread = ${sStd.toFixed(1)}`,`temps as −${((sMean-Math.min(...filledT))/sStd).toFixed(1)} to +${((Math.max(...filledT)-sMean)/sStd).toFixed(1)}`,1)],
+    ['learning...',()=>setStation(3,`Learns: sold ≈ ${pm.w.toFixed(0)} × scaled + ${pm.b.toFixed(0)}`,'a trained model',1)],
+    ['ready',()=>setStation(4,'','ready for new days')]];
+  const raw=$('#newDay').value, messy=!isNum(raw), t=messy?mean:+raw, z=(t-sMean)/sStd, y=pm.w*z+pm.b;
+  return[
+    [raw===''?'(blank)':raw,()=>setStation(0,'A new day',raw===''?'(blank)':`"${raw}"`)],
+    [t.toFixed(1)+' °C',()=>setStation(1,`Reuses remembered average (${mean.toFixed(1)})`,messy?`${t.toFixed(1)} °C <span class="hint">(filled)</span>`:`${t} °C <span class="hint">(unchanged)</span>`)],
+    [(z>=0?'+':'−')+Math.abs(z).toFixed(2),()=>setStation(2,'Reuses remembered typical and spread',`${z>=0?'+':'−'}${Math.abs(z).toFixed(2)}`)],
+    ['crunching',()=>setStation(3,'Reuses its learned rule',`${pm.w.toFixed(0)} × ${z.toFixed(2)} + ${pm.b.toFixed(0)}`)],
+    ['≈ '+fmt(y),()=>setStation(4,'',`<b>≈ ${fmt(y)} ice creams</b>`)]];
+}
+function runPipe(){
+  clearTimeout(pipeTimer);clearPipe();const steps=pipeSteps();let i=0;
+  $('#pipeNote').textContent=pipeMode==='fit'?'Fitting: each step learns from the whole notebook, then passes its output along.':'Predicting: nobody learns anything now. Each step just reuses what it remembered.';
+  (function go(){st.forEach(s=>s.classList.remove('active'));if(i>=steps.length)return;const [lab,fn]=steps[i];movePacket(i,lab);const idx=i;pipeTimer=setTimeout(()=>{st[idx].classList.add('active');fn();i++;pipeTimer=setTimeout(go,reduce?0:450)},reduce?0:600)})();
+}
+function setMode(m){pipeMode=m;$('#modeFit').classList.toggle('on',m==='fit');$('#modePred').classList.toggle('on',m==='pred');$('#newDayWrap').hidden=m!=='pred';clearPipe();runPipe()}
+$('#modeFit').addEventListener('click',()=>setMode('fit'));
+$('#modePred').addEventListener('click',()=>setMode('pred'));
+$('#newDay').addEventListener('change',runPipe);
+$('#runPipe').addEventListener('click',runPipe);
+pipeSteps().forEach(([,f])=>f());
+requestAnimationFrame(()=>movePacket(4,'ready'));
+
+/* ---------- 5 TOKENS ---------- */
+const WORDS='the a an i you we it is are was on in of to and or with for my this that love like ice cream hot cold warm day today sun sunny rain pizza cheese cat dog sat mat how does do ai work works learn learning machine model data predict word words what why good very so sweet eat happy hello world please thanks weather tomorrow summer winter chocolate vanilla sales people buy more when not freezing chilly burger'.split(' ');
+const PIECES='ing ed er est ly es un re pre tion ion ment ness able th he in an on at en ou ea ch sh st pi zz za lo ve ee ll oo gr tr pl br cr ca co ma mo pe ta te ti to de di la le li ne no ni ra ri ro se si so wa we wo ha hi ho be bi bo fl um ig or ar al it mb'.split(' ');
+const VOC=new Set([...WORDS,...PIECES]);
+const hid=s=>{let h=7;for(const c of s)h=(h*31+c.charCodeAt(0))%48000;return 1000+h};
+function tokenize(text){
+  const out=[];const parts=text.match(/\s+|[A-Za-z]+|[0-9]+|[^\sA-Za-z0-9]/gu)||[];
+  for(const p of parts){
+    if(/^\s+$/.test(p))continue;
+    const low=p.toLowerCase();
+    if(/^[a-z]+$/.test(low)){
+      if(WORDS.includes(low)){out.push({t:p,word:true,id:hid(low)});continue}
+      let i=0;while(i<low.length){let j=low.length;for(;j>i+1;j--)if(VOC.has(low.slice(i,j)))break;out.push({t:p.slice(i,j),word:false,id:hid(low.slice(i,j))});i=j}
+    }else if(/^[0-9]+$/.test(p)){for(const ch of p)out.push({t:ch,word:false,id:hid(ch)})}
+    else out.push({t:p,word:false,sp:true,id:hid(p)});
+  }
+  return out;
+}
+const MAP={hot:[352,64],warm:[318,92],sunny:[392,98],summer:[330,46],sun:[404,60],cold:[80,68],winter:[52,44],rain:[108,98],freezing:[44,86],chilly:[120,52],pizza:[300,214],cheese:[344,236],chocolate:[232,206],vanilla:[252,244],cream:[282,180],ice:[196,168],burger:[372,196],cat:[64,214],dog:[108,240],love:[214,92],like:[244,114],happy:[196,64]};
+const CL=[['warm weather',362,72,78],['cold weather',84,72,72],['food',292,214,96],['pets',86,226,52],['feelings',218,88,52]];
+(function drawMap(){let s=`<defs><marker id="ah" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10z" fill="var(--pr-fill)"/></marker><marker id="ah2" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10z" fill="var(--muted)"/></marker></defs>`;
+  CL.forEach(([l,x,y,r])=>{s+=`<ellipse class="cl" cx="${x}" cy="${y}" rx="${r+10}" ry="${r*0.62+8}"/><text class="cll" x="${x}" y="${y-r*0.62-12}" text-anchor="middle">${l}</text>`});
+  s+=`<g id="vecG"></g>`;
+  Object.entries(MAP).forEach(([w,[x,y]])=>{s+=`<g data-w="${w}"><circle class="dot" cx="${x}" cy="${y}" r="4"/><text x="${x+7}" y="${y+4}">${w}</text></g>`});$('#meaningMap').innerHTML=s})();
+function renderTok(){
+  const txt=$('#tokIn').value,toks=tokenize(txt);
+  $('#chips').innerHTML=toks.map((k,i)=>`<span class="chip${k.sp?' sp':k.word?'':' frag'}" style="animation-delay:${Math.min(i*25,400)}ms"><span class="w">${k.t.replace(/&/g,'&amp;').replace(/</g,'&lt;')}</span><span class="id">${k.id}</span></span>`).join('');
+  const nWords=(txt.match(/\S+/g)||[]).length,frags=toks.filter(k=>!k.word&&!k.sp).length;
+  $('#tokStats').innerHTML=`${nWords} words become <b>${toks.length} tokens</b>${frags?` · <span style="color:var(--bad)">${frags} chunk${frags>1?'s':''}</span>`:''}<br>What the model actually receives: [${toks.slice(0,14).map(k=>k.id).join(', ')}${toks.length>14?', ...':''}]`;
+  const present=new Set(toks.map(k=>k.t.toLowerCase()));
+  $$('#meaningMap g[data-w]').forEach(g=>{const on=present.has(g.dataset.w);g.classList.toggle('hit',on);if(!g.classList.contains('res'))g.querySelector('circle').setAttribute('r',on?7:4)});
+}
+$('#tokIn').addEventListener('input',renderTok);
+$$('[data-tok]').forEach(b=>b.addEventListener('click',()=>{$('#tokIn').value=b.dataset.tok;renderTok()}));
+renderTok();
+// vector maths
+const wordsSorted=Object.keys(MAP).sort();
+['vA','vB','vC'].forEach(id=>{$('#'+id).innerHTML=wordsSorted.map(w=>`<option>${w}</option>`).join('')});
+function setVec(a,b,c){$('#vA').value=a;$('#vB').value=b;$('#vC').value=c}
+function doVec(){
+  const a=$('#vA').value,b=$('#vB').value,c=$('#vC').value;
+  const [ax,ay]=MAP[a],[bx,by]=MAP[b],[cx,cy]=MAP[c];const rx=cx+ax-bx,ry=cy+ay-by;
+  let best=null,bd=1e9;for(const [w,[x,y]] of Object.entries(MAP)){if(w===a||w===b||w===c)continue;const d=(x-rx)**2+(y-ry)**2;if(d<bd){bd=d;best=w}}
+  const [nx,ny]=MAP[best];
+  $('#vecG').innerHTML=`<line class="vec-draw" x1="${bx}" y1="${by}" x2="${ax}" y2="${ay}" stroke="var(--muted)" stroke-width="2" stroke-dasharray="5 5" marker-end="url(#ah2)"/><line class="vec-draw" x1="${cx}" y1="${cy}" x2="${clamp(rx,4,456)}" y2="${clamp(ry,4,276)}" stroke="var(--pr-fill)" stroke-width="3" marker-end="url(#ah)" style="animation-delay:.5s"/><circle class="ring" cx="${nx}" cy="${ny}" r="6"/>`;
+  $$('#meaningMap g[data-w]').forEach(g=>g.classList.toggle('res',g.dataset.w===best));
+  const r=$('#vRes');r.textContent='...';setTimeout(()=>{r.textContent=best},reduce?0:900);
+}
+$('#vGo').addEventListener('click',doVec);
+$$('[data-vec]').forEach(b=>b.addEventListener('click',()=>{setVec(...b.dataset.vec.split(','));doVec()}));
+setVec('hot','summer','winter');
+
+/* ---------- 6 GENERATE ---------- */
+const CORPUS=`on a hot day people buy ice cream .
+on a cold day people buy hot chocolate .
+the sun is hot today .
+the cat sat on the mat .
+the dog sat on the sofa .
+people love ice cream on a hot day .
+the cat loves the sun .
+ice cream is cold and sweet .
+the dog loves ice cream .
+on a sunny day the cat sat in the sun .`;
+$('#corpus').innerHTML=CORPUS.split('\n').join('<br>');
+const toks=CORPUS.split(/\s+/);const BI={};
+for(let i=0;i<toks.length-1;i++){const a=toks[i],b=toks[i+1];if(a==='.')continue;(BI[a]=BI[a]||{})[b]=(BI[a][b]||0)+1}
+let temp=1,sent=['on'],lastPick=null;
+function dist(word){const d=BI[word];if(!d)return[];let tot=0;const e=Object.entries(d).map(([w,c])=>{const v=Math.pow(c,1/temp);tot+=v;return[w,v]});return e.map(([w,v])=>[w,v/tot]).sort((a,b)=>b[1]-a[1])}
+function sample(d){let r=Math.random(),acc=0;for(const [w,p] of d){acc+=p;if(r<=acc)return w}return d[d.length-1][0]}
+const done=()=>sent[sent.length-1]==='.'||sent.length>=16||!BI[sent[sent.length-1]];
+function renderGen(){
+  $('#sentence').innerHTML=sent.map((w,i)=>`<span class="wd${i>0?' gen':''}">${w}</span>`).join('')+(done()?'':'<span class="caret"></span>');
+  const d=done()?[]:dist(sent[sent.length-1]);
+  $('#barsTitle').textContent=done()?'Done. It predicted a full stop, so it stops.':`Chances for the word after "${sent[sent.length-1]}"`;
+  $('#genBars').innerHTML=d.slice(0,6).map(([w,p])=>`<button class="bar${w===lastPick?' pick':''}" data-w="${w}"><span class="lab">${w}</span><span class="trk"><span class="fill" style="width:${(p*100).toFixed(1)}%"></span></span><span class="pc">${(p*100).toFixed(0)}%</span></button>`).join('');
+  $('#stepBtn').disabled=done();$('#autoBtn').disabled=done();
+}
+function hl(i){for(let k=0;k<4;k++)$('#L'+k).classList.toggle('on',k===i)}
+const wait=ms=>new Promise(r=>setTimeout(r,reduce?0:ms));
+async function spinTo(w){
+  const bars=$$('#genBars .bar');if(!bars.length||reduce)return;
+  const target=bars.findIndex(b=>b.dataset.w===w);const hops=bars.length*2+(target<0?0:target);let delay=40;
+  for(let h=0;h<=hops;h++){bars.forEach((b,i)=>b.classList.toggle('spin',i===h%bars.length));await wait(delay);delay*=1.1}
+  bars.forEach(b=>b.classList.remove('spin'));
+}
+async function step(forced){
+  if(done())return;
+  hl(0);await wait(220);
+  hl(1);lastPick=null;renderGen();await wait(260);
+  hl(2);const d=dist(sent[sent.length-1]);const w=forced||sample(d);
+  if(!forced)await spinTo(w);
+  lastPick=w;renderGen();await wait(350);
+  hl(3);sent.push(w);lastPick=null;renderGen();await wait(220);hl(-1);
+}
+let busy=false;
+async function guarded(fn){if(busy)return;busy=true;try{await fn()}finally{busy=false}}
+$('#stepBtn').addEventListener('click',()=>guarded(()=>step()));
+$('#autoBtn').addEventListener('click',()=>guarded(async()=>{while(!done())await step()}));
+$('#againBtn').addEventListener('click',()=>{if(busy)return;sent=[sent[0]];lastPick=null;renderGen()});
+$('#genBars').addEventListener('click',e=>{const b=e.target.closest('.bar');if(b)guarded(()=>step(b.dataset.w))});
+$$('[data-start]').forEach(b=>b.addEventListener('click',()=>{if(busy)return;$$('[data-start]').forEach(x=>x.classList.toggle('on',x===b));sent=[b.dataset.start];lastPick=null;renderGen()}));
+$('#tempG').addEventListener('input',e=>{temp=+e.target.value;$('#tempGVal').textContent=temp.toFixed(2);$('#tempMood').textContent=temp<.4?'(plays it very safe)':temp>1.8?'(chaos goblin mode)':'';renderGen()});
+sent=['on','a','hot'];renderGen();
+
+/* ---------- 7 BLANKS ---------- */
+const BL={
+  cat:{prompt:'The cat sat on the',d:[['mat',.46],['floor',.19],['sofa',.14],['bed',.09],['roof',.05],['keyboard',.04],['moon',.03]],note:'A normal blank. Most of the chance goes to sensible words, but the dice can still land on "moon". Cats, am I right.'},
+  typo:{prompt:'I lovee pizza with extra',fixed:'I love pizza with extra',d:[['cheese',.52],['toppings',.17],['sauce',.11],['pepperoni',.09],['garlic',.06],['olives',.05]],d2:[['cheese',.55],['toppings',.16],['sauce',.11],['pepperoni',.09],['garlic',.05],['olives',.04]],note:'"lovee" arrives as the tokens love + e. The rest of the sentence carries the meaning, so the guesses barely budge. Hit the fix button and compare.'},
+  mars:{prompt:'The first person to walk on Mars was',d:[['Neil Armstrong',.29],['Buzz Aldrin',.17],['Elon Musk',.14],['Yuri Gagarin',.11],['a robot',.08],['no one yet',.07],['John Carter',.06]],truth:'no one yet',note:'Nobody has walked on Mars. The true answer gets a measly 7%. The model fills the blank with names that often show up near "first", "walk" and "Mars". That is a hallucination. To be fair, today\'s chatbots are trained to catch obvious trick questions like this one. They still slip on more obscure ones, which is exactly what makes hallucinations sneaky.'}
+};
+let blKey='cat',typoFixed=false,blBusy=false;
+function renderBl(fillWord){
+  const b=BL[blKey];const d=(blKey==='typo'&&typoFixed)?b.d2:b.d;
+  const pr=(blKey==='typo'&&typoFixed)?b.fixed:b.prompt;
+  const shownPrompt=blKey==='typo'&&!typoFixed?pr.replace('lovee','<span style="text-decoration:underline wavy var(--bad)">lovee</span>'):pr;
+  $('#blPrompt').innerHTML=`${shownPrompt} <span class="blank${fillWord?' landed':''}">${fillWord||'&nbsp;?&nbsp;'}</span>`;
+  $('#typoFix').hidden=blKey!=='typo';$('#typoToggle').textContent=typoFixed?'Put the typo back':'Fix the typo and compare';
+  $('#blBars').innerHTML=d.map(([w,p])=>`<div class="bar${w===fillWord?' pick':''}${w===b.truth?' truth':''}"><span class="lab">${w}</span><span class="trk"><span class="fill" style="width:${p*100}%"></span></span><span class="pc">${(p*100).toFixed(0)}%</span></div>`).join('');
+  const m=$('#blMsg');m.className='msg'+(blKey==='mars'&&fillWord&&fillWord!==b.truth?' err':'');
+  m.innerHTML=(fillWord?(blKey==='mars'&&fillWord!==b.truth?`It said <b>${fillWord}</b>. Fluent, confident, wrong. `:`It picked <b>${fillWord}</b>. `):'')+b.note;
+}
+$$('[data-bl]').forEach(btn=>btn.addEventListener('click',()=>{if(blBusy)return;blKey=btn.dataset.bl;typoFixed=false;$$('[data-bl]').forEach(x=>{x.classList.toggle('on',x===btn);x.setAttribute('aria-selected',x===btn)});renderBl()}));
+$('#typoToggle').addEventListener('click',()=>{typoFixed=!typoFixed;renderBl()});
+$('#fillBtn').addEventListener('click',async()=>{
+  if(blBusy)return;blBusy=true;
+  const b=BL[blKey];const d=(blKey==='typo'&&typoFixed)?b.d2:b.d;const w=sample(d);
+  if(!reduce){const bars=$$('#blBars .bar');const target=d.findIndex(x=>x[0]===w);let delay=40;for(let h=0;h<=bars.length*2+target;h++){bars.forEach((x,i)=>x.classList.toggle('spin',i===h%bars.length));await wait(delay);delay*=1.1}}
+  renderBl(w);blBusy=false;
+});
+renderBl();
+
+// Be the model game
+const LINES=CORPUS.split('\n').map(l=>l.trim().split(' ').filter(w=>w!=='.'));
+const VOCAB=[...new Set(toks.filter(w=>w!=='.'))];
+const topGuess=w=>{const d=BI[w];if(!d)return'?';return Object.entries(d).sort((a,b)=>b[1]-a[1])[0][0]};
+let score={you:0,bot:0,n:0},round=null;
+function renderScore(){$('#score').innerHTML=`<span>You <b>${score.you}</b></span><span>Toy model <b>${score.bot}</b></span><span class="hint" style="align-self:flex-end">${score.n} round${score.n===1?'':'s'}</span>`}
+function newRound(){
+  const line=LINES[rnd(LINES.length)],i=1+rnd(line.length-1),ans=line[i],mg=topGuess(line[i-1]);
+  const opts=new Set([ans]);if(mg!==ans&&mg!=='.')opts.add(mg);while(opts.size<3)opts.add(VOCAB[rnd(VOCAB.length)]);
+  round={line,i,ans,mg,done:false};
+  $('#gSent').innerHTML=line.map((w,k)=>k===i?'<span class="hole">?</span>':`<span>${w}</span>`).join('');
+  $('#gOpts').innerHTML=shuffle([...opts]).map(w=>`<button class="btn" data-g="${w}">${w}</button>`).join('');
+  $('#gMsg').className='msg';$('#gMsg').textContent='Pick a word.';
+}
+$('#gOpts').addEventListener('click',e=>{
+  const b=e.target.closest('[data-g]');if(!b||round.done)return;round.done=true;
+  const you=b.dataset.g===round.ans,bot=round.mg===round.ans;
+  score.n++;if(you)score.you++;if(bot)score.bot++;renderScore();
+  $$('#gOpts [data-g]').forEach(x=>{x.disabled=true;if(x.dataset.g===round.ans)x.classList.add('good');else if(x===b)x.classList.add('wrong')});
+  const hole=$('#gSent .hole');hole.textContent=round.ans;hole.classList.add('landed');
+  $('#gMsg').className='msg '+(you?'ok':'err');
+  $('#gMsg').innerHTML=`${you?'You nailed it.':`You picked <b>${b.dataset.g}</b>. It was <b>${round.ans}</b>.`} The toy model only saw "<b>${round.line[round.i-1]}</b>" and guessed <b>${round.mg}</b>${bot?', correct.':', wrong. In training, misses like this cause the biggest nudges.'}`;
+});
+$('#gNext').addEventListener('click',newRound);
+renderScore();newRound();
+
+// typewriter for GenAI side
+(function(){const out=$('#typeOut'),txt='"The capital of France is Paris."';let i=0,started=false;
+  if(reduce){out.textContent=txt;return}
+  new IntersectionObserver(es=>{if(es[0].isIntersecting&&!started){started=true;(function t(){out.textContent=txt.slice(0,++i);if(i<txt.length)setTimeout(t,28)})()}}).observe(out);})();
+
+/* ---------- 8 QUIZ ---------- */
+const QUIZ=[
+  ['A music app studies your listening history to learn your taste.','fit','It learns patterns from lots of examples.'],
+  ['A photo gets resized and its brightness evened out before an image model looks at it.','transform','Tidying the input into the shape the model expects.'],
+  ['A streaming app picks the next show to recommend to you.','predict','Using learned taste on a new moment.'],
+  ['ChatGPT chops your message into tokens.','transform','Text becomes numbers before the model sees it.'],
+  ['An AI lab trains a model on a huge chunk of the internet for months.','fit','The biggest, priciest fit there is.'],
+  ['Your phone keyboard suggests the next word.','predict','Next-word prediction, the same idea as chapter 6.'],
+  ['Blank age answers in a survey get filled with the average age.','transform','Classic imputation, straight out of chapter 2.'],
+  ['A spam filter decides whether this new email is junk.','predict','One guess about one new email.']
+];
+const qa={};
+$('#quiz').innerHTML=QUIZ.map(([t],i)=>`<div class="qcard" data-q="${i}"><p>${t}</p><div class="row">${['fit','transform','predict'].map(v=>`<button class="btn" data-a="${v}">${v}</button>`).join('')}</div><div class="fb"></div></div>`).join('');
+function renderQScore(){const n=Object.keys(qa).length,r=Object.values(qa).filter(Boolean).length;$('#qScore').innerHTML=n?`<b style="color:var(--ink)">${r} / ${n}</b>${n===QUIZ.length?(r===QUIZ.length?' Flawless victory.':r>=6?' Solid. You get it.':' Scroll up and have another go. No judgement.'):''}`:''}
+$('#quiz').addEventListener('click',e=>{
+  const b=e.target.closest('[data-a]');if(!b)return;const card=b.closest('.qcard'),i=+card.dataset.q;if(i in qa)return;
+  const [,ans,why]=QUIZ[i],ok=b.dataset.a===ans;qa[i]=ok;
+  card.classList.add(ok?'right':'miss');
+  card.querySelectorAll('[data-a]').forEach(x=>{x.disabled=true;if(x.dataset.a===ans)x.classList.add('good');else if(x===b)x.classList.add('wrong')});
+  card.querySelector('.fb').textContent=(ok?'Yep. ':`Actually: ${ans}. `)+why;
+  renderQScore();
+});
+})();
+</script>
+</html>
